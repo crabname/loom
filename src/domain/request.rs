@@ -1,4 +1,7 @@
-use super::{FormField, KeyValueField, MultipartField};
+use super::{
+    default_form_fields, default_key_value_fields, default_multipart_fields, FormField,
+    KeyValueField, MultipartField,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum RequestProtocol {
@@ -70,6 +73,23 @@ impl HttpMethod {
 
     pub fn from_label(label: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|method| method.as_str() == label)
+    }
+}
+
+impl Request {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            protocol: RequestProtocol::default(),
+            method: HttpMethod::Get,
+            url: String::new(),
+            query_params: default_key_value_fields(),
+            headers: default_key_value_fields(),
+            body_type: BodyType::None,
+            body: String::new(),
+            form_fields: default_form_fields(),
+            multipart_fields: default_multipart_fields(),
+        }
     }
 }
 

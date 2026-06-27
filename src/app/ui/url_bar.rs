@@ -4,9 +4,10 @@ use gpui_component::{
     h_flex,
     input::Input,
     select::Select,
-    ActiveTheme as _, Disableable as _,
+    ActiveTheme as _, Disableable as _, IconName, Sizable as _,
 };
 
+use super::curl::CurlImportTarget;
 use super::ApiHelperApp;
 
 impl ApiHelperApp {
@@ -32,7 +33,37 @@ impl ApiHelperApp {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(Input::new(&self.url_input)),
+                    .child(
+                        Input::new(&self.url_input).suffix(
+                            h_flex()
+                                .gap_0p5()
+                                .child(
+                                    Button::new("url-import-curl")
+                                        .ghost()
+                                        .xsmall()
+                                        .icon(IconName::ArrowDown)
+                                        .tooltip("Import cURL")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.open_import_curl_dialog(
+                                                CurlImportTarget::ActiveTab,
+                                                window,
+                                                cx,
+                                            );
+                                        })),
+                                )
+                                .child(
+                                    Button::new("url-export-curl")
+                                        .ghost()
+                                        .xsmall()
+                                        .icon(IconName::Copy)
+                                        .tooltip("Export cURL")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            let curl = this.active_request_as_curl(cx);
+                                            this.open_export_curl_dialog(curl, window, cx);
+                                        })),
+                                ),
+                        ),
+                    ),
             )
             .child(
                 Button::new("send")

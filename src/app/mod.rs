@@ -6,10 +6,13 @@ use gpui_component::{
     input::{InputEvent, InputState},
     select::{SelectEvent, SelectState},
     tree::{TreeEvent, TreeItem, TreeState},
-    IndexPath,
+    IndexPath, WindowExt,
 };
 
-use crate::domain::{demo_collections, BodyType, Collection, FormField, HttpMethod, KeyValueField, MultipartField};
+use crate::domain::{
+    demo_collections, format_body, BodyType, Collection, FormField, HttpMethod, KeyValueField,
+    MultipartField, Request, ResponseBody, ResponseBodyView,
+};
 use crate::transport::{send_http_request, HttpResponse};
 
 use tab::{Tab, TabSource};
@@ -171,13 +174,19 @@ impl ApiHelperApp {
         self._subscriptions.push(cx.subscribe(&self.collections_tree, {
             |this, _, event: &TreeEvent, _| {
                 let (TreeEvent::Expanded(id) | TreeEvent::Collapsed(id)) = event;
-                if let Some(collection_index) = ui::parse_collection_tree_id(id) {
-                    if let Some(collection) = this.collections.get_mut(collection_index) {
+                if let Some(collection_index) = ui::parse_collection_tree_id(id)
+                    && let Some(collection) = this.collections.get_mut(collection_index) {
                         collection.expanded = matches!(event, TreeEvent::Expanded(_));
                     }
-                }
             }
         }));
+    }
+
+    fn refresh_collections_tree(&mut self, cx: &mut Context<Self>) {
+        let items = build_collection_tree_items(&self.collections);
+        self.collections_tree.update(cx, |tree, cx| {
+            tree.set_items(items, cx);
+        });
     }
 
     fn sync_collections_tree_selection(&mut self, cx: &mut Context<Self>) {
@@ -286,6 +295,29 @@ impl ApiHelperApp {
         });
     }
 
+    fn format_request_body(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(body_type) = self.active_tab().map(|tab| tab.body_type) else {
+            return;
+        };
+
+        let body = self.body_input.read(cx).value().to_string();
+        match format_body(body_type, &body) {
+            Ok(formatted) => {
+                self.body_input.update(cx, |input, cx| {
+                    input.set_value(formatted.clone(), window, cx);
+                });
+                if let Some(tab) = self.active_tab_mut() {
+                    tab.request_body = formatted;
+                }
+                self.sync_active_tab_to_collection(cx);
+                cx.notify();
+            }
+            Err(error) => {
+                window.push_notification(gpui_component::notification::Notification::error(error), cx);
+            }
+        }
+    }
+
     fn capture_editor_state(&mut self, cx: &App) {
         let url = self.url_input.read(cx).value().to_string();
         let body = self.body_input.read(cx).value().to_string();
@@ -308,6 +340,108 @@ impl ApiHelperApp {
         self.reload_active_tab_inputs(window, cx);
         self.sync_collections_tree_selection(cx);
         cx.notify();
+    }
+
+    fn add_request_to_collection(
+        &mut self,
+        collection: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(collection_data) = self.collections.get_mut(collection) else {
+            return;
+        };
+
+        collection_data.expanded = true;
+        let number = collection_data.requests.len() + 1;
+        let name = if number == 1 {
+            "New Request".into()
+        } else {
+            format!("New Request {number}")
+        };
+        let request_index = collection_data.requests.len();
+        collection_data
+            .requests
+            .push(Request::new(name));
+
+        self.refresh_collections_tree(cx);
+        self.open_request_tab(collection, request_index, window, cx);
+    }
+
+    fn delete_request_from_collection(
+        &mut self,
+        collection: usize,
+        request: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.collections.get(collection).is_none_or(|c| request >= c.requests.len()) {
+            return;
+        }
+
+        self.flush_field_inputs(cx);
+        self.capture_editor_state(cx);
+        self.sync_active_tab_to_collection(cx);
+
+        let active_tab_id = self.tabs.get(self.active_tab).map(|tab| tab.id);
+
+        self.tabs.retain(|tab| {
+            tab.source != Some(TabSource { collection, request })
+        });
+
+        for tab in &mut self.tabs {
+            if let Some(source) = &mut tab.source {
+                if source.collection == collection && source.request > request {
+                    source.request -= 1;
+                }
+            }
+        }
+
+        self.collections[collection].requests.remove(request);
+        self.ensure_open_tab(window, cx);
+
+        if let Some(active_tab_id) = active_tab_id {
+            self.active_tab = self
+                .tabs
+                .iter()
+                .position(|tab| tab.id == active_tab_id)
+                .unwrap_or_else(|| self.tabs.len().saturating_sub(1));
+        }
+
+        self.refresh_collections_tree(cx);
+        self.reload_active_tab_inputs(window, cx);
+        self.sync_collections_tree_selection(cx);
+        cx.notify();
+    }
+
+    fn ensure_open_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.tabs.is_empty() {
+            return;
+        }
+
+        for (collection_index, collection) in self.collections.iter().enumerate() {
+            if let Some(request_data) = collection.requests.first() {
+                let id = self.next_tab_id;
+                self.next_tab_id += 1;
+                self.tabs.push(Tab::from_request(
+                    id,
+                    request_data,
+                    Some(TabSource {
+                        collection: collection_index,
+                        request: 0,
+                    }),
+                ));
+                self.active_tab = 0;
+                self.reload_active_tab_inputs(window, cx);
+                return;
+            }
+        }
+
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        self.tabs.push(Tab::empty(id, "Request 1"));
+        self.active_tab = 0;
+        self.reload_active_tab_inputs(window, cx);
     }
 
     fn open_request_tab(
@@ -394,7 +528,8 @@ impl ApiHelperApp {
         if let Some(tab) = self.active_tab_mut() {
             tab.loading = true;
             tab.response_status = Some("Sending…".into());
-            tab.response_body.clear();
+            tab.response_body = ResponseBody::empty();
+            tab.response_body_view = ResponseBodyView::Raw;
             tab.response_headers.clear();
         }
         self.sync_active_tab_to_collection(cx);
@@ -448,11 +583,13 @@ impl ApiHelperApp {
                     response.status, response.status_text, response.elapsed_ms
                 ));
                 tab.response_body = response.body;
+                tab.response_body_view = ResponseBodyView::Raw;
                 tab.response_headers = response.headers;
             }
             Err(error) => {
                 tab.response_status = Some(format!("Error · {error}"));
-                tab.response_body = error;
+                tab.response_body = ResponseBody::Text(error);
+                tab.response_body_view = ResponseBodyView::Raw;
                 tab.response_headers.clear();
             }
         }

@@ -1,5 +1,6 @@
 use crate::domain::{
-    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, MultipartFieldType,
+    classify_response_body, response_content_type, BodyType, FormField, HttpMethod, KeyValueField,
+    MultipartField, MultipartFieldType, ResponseBody,
 };
 
 pub fn build_url_with_params(base_url: &str, params: &[KeyValueField]) -> Result<String, String> {
@@ -35,6 +36,11 @@ pub async fn send_http_request(
     let url = build_url_with_params(&url, &query_params)?;
 
     let client = reqwest::Client::builder()
+        .user_agent(concat!(
+            env!("CARGO_PKG_NAME"),
+            "/",
+            env!("CARGO_PKG_VERSION")
+        ))
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
@@ -56,14 +62,16 @@ pub async fn send_http_request(
     let response = request.send().await.map_err(|e| e.to_string())?;
     let status = response.status();
     let headers = parse_response_headers(response.headers());
-    let body = response.text().await.map_err(|e| e.to_string())?;
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let content_type = response_content_type(&headers);
+    let body = classify_response_body(&bytes, content_type.as_deref());
     let elapsed_ms = started.elapsed().as_millis();
 
     Ok(HttpResponse {
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or("Unknown").into(),
         headers,
-        body: prettify_body(&body),
+        body,
         elapsed_ms,
     })
 }
@@ -73,7 +81,7 @@ pub struct HttpResponse {
     pub status: u16,
     pub status_text: String,
     pub headers: Vec<KeyValueField>,
-    pub body: String,
+    pub body: ResponseBody,
     pub elapsed_ms: u128,
 }
 
@@ -206,9 +214,3 @@ async fn build_multipart(
     Ok(request.multipart(form))
 }
 
-fn prettify_body(body: &str) -> String {
-    serde_json::from_str::<serde_json::Value>(body)
-        .ok()
-        .and_then(|value| serde_json::to_string_pretty(&value).ok())
-        .unwrap_or_else(|| body.to_string())
-}

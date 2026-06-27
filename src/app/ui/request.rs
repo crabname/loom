@@ -1,5 +1,6 @@
 use gpui::*;
 use gpui_component::{
+    button::Button,
     h_flex, v_flex,
     input::Input,
     scroll::ScrollableElement as _,
@@ -52,12 +53,25 @@ impl ApiHelperApp {
                 let mut column = v_flex()
                     .gap_2()
                     .size_full()
-                    .child(
-                        h_flex()
+                    .child({
+                        let mut header = h_flex()
                             .items_center()
+                            .gap_2()
                             .child(div().flex_1().text_sm().child("Body"))
-                            .child(Select::new(&self.body_type_select).w(px(180.))),
-                    );
+                            .child(Select::new(&self.body_type_select).w(px(180.)));
+
+                        if matches!(body_type, BodyType::Json | BodyType::Xml) {
+                            header = header.child(
+                                Button::new("format-body")
+                                    .label("Format")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.format_request_body(window, cx);
+                                    })),
+                            );
+                        }
+
+                        header
+                    });
 
                 column = match body_type {
                     BodyType::FormUrlEncoded => {

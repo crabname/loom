@@ -1,6 +1,6 @@
 use crate::domain::{
     default_form_fields, default_key_value_fields, default_multipart_fields, BodyType,
-    FormField, HttpMethod, KeyValueField, MultipartField, Request,
+    FormField, HttpMethod, KeyValueField, MultipartField, Request, ResponseBody, ResponseBodyView,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +37,8 @@ pub struct Tab {
     pub form_fields: Vec<FormField>,
     pub multipart_fields: Vec<MultipartField>,
     pub response_panel_tab: ResponsePanelTab,
-    pub response_body: String,
+    pub response_body: ResponseBody,
+    pub response_body_view: ResponseBodyView,
     pub response_headers: Vec<KeyValueField>,
     pub response_status: Option<String>,
     pub loading: bool,
@@ -59,7 +60,8 @@ impl Tab {
             form_fields: request.form_fields.clone(),
             multipart_fields: request.multipart_fields.clone(),
             response_panel_tab: ResponsePanelTab::Body,
-            response_body: String::new(),
+            response_body: ResponseBody::empty(),
+            response_body_view: ResponseBodyView::Raw,
             response_headers: Vec::new(),
             response_status: None,
             loading: false,
@@ -81,7 +83,8 @@ impl Tab {
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             response_panel_tab: ResponsePanelTab::Body,
-            response_body: String::new(),
+            response_body: ResponseBody::empty(),
+            response_body_view: ResponseBodyView::Raw,
             response_headers: Vec::new(),
             response_status: None,
             loading: false,

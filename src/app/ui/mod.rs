@@ -1,3 +1,4 @@
+mod curl;
 mod fields;
 mod request;
 mod response;
@@ -16,13 +17,13 @@ pub(crate) use sidebar::{
 use gpui::*;
 use gpui_component::{
     resizable::{h_resizable, resizable_panel, v_resizable},
-    v_flex,
+    v_flex, Root,
 };
 
 use super::ApiHelperApp;
 
 impl Render for ApiHelperApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .child(
@@ -60,5 +61,7 @@ impl Render for ApiHelperApp {
                         ),
                     ),
             )
+            .children(Root::render_dialog_layer(window, cx))
+            .children(Root::render_notification_layer(window, cx))
     }
 }

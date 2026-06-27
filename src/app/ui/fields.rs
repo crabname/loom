@@ -278,11 +278,10 @@ pub(crate) fn flush_multipart_rows(
         field.name = row.name.read(cx).value().to_string();
         field.value = row.value.read(cx).value().to_string();
         field.content_type = row.content_type.read(cx).value().to_string();
-        if let Some(label) = row.field_type.read(cx).selected_value() {
-            if let Some(field_type) = MultipartFieldType::from_label(label) {
+        if let Some(label) = row.field_type.read(cx).selected_value()
+            && let Some(field_type) = MultipartFieldType::from_label(label) {
                 field.field_type = field_type;
             }
-        }
     }
 }
 
