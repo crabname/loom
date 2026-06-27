@@ -1,6 +1,6 @@
 use super::{
-    default_form_fields, default_key_value_fields, default_multipart_fields, FormField,
-    KeyValueField, MultipartField,
+    default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
+    Environment, FormField, KeyValueField, MultipartField, Variable,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -89,6 +89,7 @@ impl Request {
             body: String::new(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
+            variables: default_variables(),
         }
     }
 }
@@ -105,11 +106,98 @@ pub struct Request {
     pub body: String,
     pub form_fields: Vec<FormField>,
     pub multipart_fields: Vec<MultipartField>,
+    pub variables: Vec<Variable>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CollectionFolder {
+    pub name: String,
+    pub expanded: bool,
+    pub variables: Vec<Variable>,
+    pub requests: Vec<Request>,
+}
+
+impl CollectionFolder {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            expanded: true,
+            variables: default_variables(),
+            requests: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Collection {
     pub name: String,
     pub expanded: bool,
+    pub variables: Vec<Variable>,
+    pub environments: Vec<Environment>,
+    pub folders: Vec<CollectionFolder>,
     pub requests: Vec<Request>,
+}
+
+impl Collection {
+    pub fn request_ref(&self, folder: Option<usize>, index: usize) -> Option<&Request> {
+        match folder {
+            None => self.requests.get(index),
+            Some(folder_index) => self
+                .folders
+                .get(folder_index)
+                .and_then(|folder| folder.requests.get(index)),
+        }
+    }
+
+    pub fn request_mut(&mut self, folder: Option<usize>, index: usize) -> Option<&mut Request> {
+        match folder {
+            None => self.requests.get_mut(index),
+            Some(folder_index) => self
+                .folders
+                .get_mut(folder_index)
+                .and_then(|folder| folder.requests.get_mut(index)),
+        }
+    }
+
+    pub fn push_request(&mut self, folder: Option<usize>, request: Request) -> usize {
+        match folder {
+            None => {
+                let index = self.requests.len();
+                self.requests.push(request);
+                index
+            }
+            Some(folder_index) => {
+                let folder = &mut self.folders[folder_index];
+                folder.expanded = true;
+                let index = folder.requests.len();
+                folder.requests.push(request);
+                index
+            }
+        }
+    }
+
+    pub fn remove_request(&mut self, folder: Option<usize>, index: usize) {
+        match folder {
+            None => {
+                self.requests.remove(index);
+            }
+            Some(folder_index) => {
+                self.folders[folder_index].requests.remove(index);
+            }
+        }
+    }
+
+    pub fn first_request_location(&self) -> Option<(Option<usize>, usize)> {
+        if !self.requests.is_empty() {
+            return Some((None, 0));
+        }
+
+        for (folder_index, folder) in self.folders.iter().enumerate() {
+            if !folder.requests.is_empty() {
+                return Some((Some(folder_index), 0));
+            }
+        }
+
+        None
+    }
 }

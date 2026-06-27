@@ -1,18 +1,18 @@
 use gpui::*;
 use gpui_component::{
-    button::Button,
+    button::{Button, ButtonVariants as _},
     h_flex, v_flex,
     input::Input,
     scroll::ScrollableElement as _,
     select::Select,
     tab::TabBar,
-    ActiveTheme as _,
+    ActiveTheme as _, IconName, Sizable as _,
 };
 
 use crate::domain::BodyType;
+
 use crate::app::tab::RequestPanelTab;
 
-use super::fields::FieldTable;
 use super::ApiHelperApp;
 
 impl ApiHelperApp {
@@ -28,7 +28,7 @@ impl ApiHelperApp {
                     .active_tab()
                     .map(|tab| tab.query_params.as_slice())
                     .unwrap_or(&[]);
-                self.render_kv_table(FieldTable::QueryParams, &self.query_inputs, fields, cx)
+                self.render_kv_table(super::fields::FieldTable::QueryParams, &self.query_inputs, fields, cx)
                     .into_any_element()
             }
             RequestPanelTab::Headers => {
@@ -37,12 +37,15 @@ impl ApiHelperApp {
                     .map(|tab| tab.headers.as_slice())
                     .unwrap_or(&[]);
                 self.render_kv_table(
-                    FieldTable::RequestHeaders,
+                    super::fields::FieldTable::RequestHeaders,
                     &self.header_inputs,
                     fields,
                     cx,
                 )
                 .into_any_element()
+            }
+            RequestPanelTab::Vars => {
+                self.render_request_variables(cx).into_any_element()
             }
             RequestPanelTab::Body => {
                 let body_type = self
@@ -80,7 +83,7 @@ impl ApiHelperApp {
                             .map(|tab| tab.form_fields.as_slice())
                             .unwrap_or(&[]);
                         column.child(self.render_kv_table(
-                            FieldTable::FormFields,
+                            super::fields::FieldTable::FormFields,
                             &self.form_inputs,
                             fields,
                             cx,
@@ -92,7 +95,7 @@ impl ApiHelperApp {
                             .map(|tab| tab.multipart_fields.as_slice())
                             .unwrap_or(&[]);
                         column.child(self.render_multipart_table(
-                            FieldTable::MultipartFields,
+                            super::fields::FieldTable::MultipartFields,
                             &self.multipart_inputs,
                             fields,
                             cx,
@@ -130,20 +133,23 @@ impl ApiHelperApp {
                         RequestPanelTab::Params => 0,
                         RequestPanelTab::Headers => 1,
                         RequestPanelTab::Body => 2,
+                        RequestPanelTab::Vars => 3,
                     })
                     .on_click(cx.listener(|this, index: &usize, _, cx| {
                         if let Some(tab) = this.active_tab_mut() {
                             tab.request_panel_tab = match index {
                                 0 => RequestPanelTab::Params,
                                 1 => RequestPanelTab::Headers,
-                                _ => RequestPanelTab::Body,
+                                2 => RequestPanelTab::Body,
+                                _ => RequestPanelTab::Vars,
                             };
                             cx.notify();
                         }
                     }))
                     .child("Params")
                     .child("Headers")
-                    .child("Body"),
+                    .child("Body")
+                    .child("Vars"),
             )
             .child(
                 div()
@@ -151,6 +157,79 @@ impl ApiHelperApp {
                     .min_h_0()
                     .overflow_y_scrollbar()
                     .child(panel_content),
+            )
+    }
+
+    fn render_request_variables(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let variables = self
+            .active_tab()
+            .map(|tab| tab.variables.as_slice())
+            .unwrap_or(&[]);
+
+        let mut list = v_flex().gap_1().child(
+            h_flex()
+                .gap_2()
+                .px_2()
+                .child(
+                    div()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child("Key"),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child("Value"),
+                )
+                .child(div().w(px(28.))),
+        );
+
+        for (index, _variable) in variables.iter().enumerate() {
+            let Some(row) = self.variable_inputs.get(index) else {
+                continue;
+            };
+
+            list = list.child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .px_2()
+                    .child(div().flex_1().child(Input::new(&row.name)))
+                    .child(div().flex_1().child(Input::new(&row.value)))
+                    .child(
+                        Button::new(("request-variable-remove", index))
+                            .ghost()
+                            .xsmall()
+                            .icon(IconName::Close)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.remove_request_variable(index, window, cx);
+                            })),
+                    ),
+            );
+        }
+
+        v_flex()
+            .gap_2()
+            .size_full()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("Request variables override collection, environment, and global values."),
+            )
+            .child(list.flex_1().overflow_y_scrollbar())
+            .child(
+                Button::new("request-variable-add")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Plus)
+                    .label("Add variable")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.add_request_variable(window, cx);
+                    })),
             )
     }
 }

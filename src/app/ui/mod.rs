@@ -1,5 +1,7 @@
 mod curl;
+mod environment;
 mod fields;
+mod rename;
 mod request;
 mod response;
 mod sidebar;
@@ -10,8 +12,9 @@ pub(crate) use fields::{
     build_multipart_row_inputs, build_row_inputs, flush_multipart_rows, flush_rows, FieldTable,
     MultipartRowInputs, RowInputs,
 };
+pub(crate) use environment::{build_variable_row_inputs, flush_environment_variables};
 pub(crate) use sidebar::{
-    build_collection_tree_items, parse_collection_tree_id, request_tree_id,
+    build_collection_tree_items, parse_collection_tree_id, parse_folder_tree_id, request_tree_id,
 };
 
 use gpui::*;

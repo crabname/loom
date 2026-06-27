@@ -1,28 +1,108 @@
 use gpui::*;
 use gpui_component::{
     h_flex, v_flex,
+    input::Input,
     scroll::ScrollableElement as _,
     tab::TabBar,
-    text::{html, markdown},
+    text::html,
     ActiveTheme as _,
 };
 
 use crate::app::tab::ResponsePanelTab;
 use crate::domain::{
-    format_binary_body_message, is_html_content, response_body_language, response_content_type,
+    format_binary_body_message, format_response_size, is_html_content, response_content_type,
     KeyValueField, ResponseBody, ResponseBodyView,
 };
 
 use super::ApiHelperApp;
 
-fn response_body_markdown(body: &str, language: Option<&str>) -> String {
-    match language {
-        Some(lang) => format!("```{lang}\n{body}\n```"),
-        None => format!("```\n{body}\n```"),
+struct ResponseStatusInfo<'a> {
+    loading: bool,
+    http_status: Option<u16>,
+    status_text: Option<&'a str>,
+    elapsed_ms: Option<u128>,
+    size_bytes: Option<usize>,
+    error: Option<&'a str>,
+}
+
+fn response_status_color(status: u16, cx: &Context<ApiHelperApp>) -> Hsla {
+    match status {
+        200..=299 => cx.theme().green,
+        300..=399 => cx.theme().blue,
+        400..=499 => cx.theme().yellow,
+        _ => cx.theme().red,
     }
 }
 
 impl ApiHelperApp {
+    fn render_response_status(
+        &self,
+        status: &ResponseStatusInfo<'_>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        if status.loading {
+            return div()
+                .text_xs()
+                .text_color(cx.theme().muted_foreground)
+                .child("Sending…")
+                .into_any_element();
+        }
+
+        if let Some(error) = status.error {
+            return div()
+                .text_xs()
+                .text_color(cx.theme().red)
+                .child(format!("Error · {error}"))
+                .into_any_element();
+        }
+
+        if let Some(http_status) = status.http_status {
+            let color = response_status_color(http_status, cx);
+            let status_text = status.status_text.unwrap_or("Unknown");
+
+            let mut row = h_flex().gap_1().items_center();
+            row = row.child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(color)
+                    .child(format!("{http_status}")),
+            );
+            row = row.child(
+                div()
+                    .text_xs()
+                    .text_color(color)
+                    .child(status_text.to_string()),
+            );
+
+            if let Some(ms) = status.elapsed_ms {
+                row = row.child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(format!("· {ms} ms")),
+                );
+            }
+
+            if let Some(size) = status.size_bytes {
+                row = row.child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(format!("· {}", format_response_size(size))),
+                );
+            }
+
+            return row.into_any_element();
+        }
+
+        div()
+            .text_xs()
+            .text_color(cx.theme().muted_foreground)
+            .child("Response will appear here after sending a request")
+            .into_any_element()
+    }
+
     fn render_response_headers(&self, headers: &[KeyValueField], cx: &Context<Self>) -> AnyElement {
         if headers.is_empty() {
             return div()
@@ -117,7 +197,7 @@ impl ApiHelperApp {
         body: &str,
         headers: &[KeyValueField],
         body_view: ResponseBodyView,
-        _cx: &Context<Self>,
+        cx: &Context<Self>,
     ) -> AnyElement {
         let content_type = response_content_type(headers);
         let is_html = is_html_content(content_type.as_deref(), body);
@@ -134,15 +214,22 @@ impl ApiHelperApp {
                 .into_any_element();
         }
 
-        let language = response_body_language(content_type.as_deref(), body);
+        if body.is_empty() {
+            return div()
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(cx.theme().muted_foreground)
+                .child("Response body will appear here after sending a request")
+                .into_any_element();
+        }
+
         div()
             .size_full()
             .min_h_0()
-            .child(
-                markdown(response_body_markdown(body, language))
-                    .selectable(true)
-                    .scrollable(true),
-            )
+            .overflow_hidden()
+            .child(Input::new(&self.response_body_input).h_full())
             .into_any_element()
     }
 
@@ -173,13 +260,29 @@ impl ApiHelperApp {
     }
 
     pub(super) fn render_response_panel(&self, cx: &Context<Self>) -> impl IntoElement + use<> {
-        let (panel_tab, body_view, status, body, headers) = self
+        let (
+            panel_tab,
+            body_view,
+            loading,
+            http_status,
+            status_text,
+            elapsed_ms,
+            size_bytes,
+            error,
+            body,
+            headers,
+        ) = self
             .active_tab()
             .map(|tab| {
                 (
                     tab.response_panel_tab,
                     tab.response_body_view,
-                    tab.response_status.clone(),
+                    tab.loading,
+                    tab.response_http_status,
+                    tab.response_status_text.clone(),
+                    tab.response_elapsed_ms,
+                    tab.response_size_bytes,
+                    tab.response_error.clone(),
                     tab.response_body.clone(),
                     tab.response_headers.clone(),
                 )
@@ -187,18 +290,29 @@ impl ApiHelperApp {
             .unwrap_or((
                 ResponsePanelTab::Body,
                 ResponseBodyView::Raw,
+                false,
+                None,
+                None,
+                None,
+                None,
                 None,
                 ResponseBody::empty(),
                 Vec::new(),
             ));
 
-        let status = status
-            .unwrap_or_else(|| "Response will appear here after sending a request".into());
-
         let html_preview_available = matches!(&body, ResponseBody::Text(text) if {
             let content_type = response_content_type(&headers);
             is_html_content(content_type.as_deref(), text)
         });
+
+        let status = ResponseStatusInfo {
+            loading,
+            http_status,
+            status_text: status_text.as_deref(),
+            elapsed_ms,
+            size_bytes,
+            error: error.as_deref(),
+        };
 
         let content: AnyElement = match panel_tab {
             ResponsePanelTab::Body => {
@@ -220,12 +334,7 @@ impl ApiHelperApp {
                     .items_center()
                     .child(div().text_sm().child("Response"))
                     .child(div().flex_1())
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(status),
-                    ),
+                    .child(self.render_response_status(&status, cx)),
             )
             .child(
                 TabBar::new("response-panel-tabs")

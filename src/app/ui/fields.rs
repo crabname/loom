@@ -1,21 +1,23 @@
 use gpui::*;
 use gpui_component::{
+    ActiveTheme as _, IconName, IndexPath, Sizable as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
-    h_flex, v_flex,
+    h_flex,
     input::{Input, InputState},
-    select::{Select, SelectState},
     scroll::ScrollableElement as _,
-    ActiveTheme as _, IconName, IndexPath, Sizable as _,
+    select::{Select, SelectState},
+    v_flex,
 };
 
 use crate::domain::{KeyValueField, MultipartField, MultipartFieldType};
 
 use super::ApiHelperApp;
 
+#[derive(Clone)]
 pub(crate) struct RowInputs {
-    name: Entity<InputState>,
-    value: Entity<InputState>,
+    pub(crate) name: Entity<InputState>,
+    pub(crate) value: Entity<InputState>,
 }
 
 const MULTIPART_TYPE_LABELS: [&str; 2] = ["text", "file"];
@@ -77,8 +79,20 @@ impl ApiHelperApp {
                 .gap_2()
                 .px_2()
                 .child(div().w(px(24.)))
-                .child(div().flex_1().text_xs().text_color(cx.theme().muted_foreground).child("Key"))
-                .child(div().flex_1().text_xs().text_color(cx.theme().muted_foreground).child("Value"))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child("Key"),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child("Value"),
+                )
                 .child(div().w(px(28.))),
         );
 
@@ -94,8 +108,8 @@ impl ApiHelperApp {
                     .child(
                         Checkbox::new((table.enabled_id(), index))
                             .checked(field.enabled())
-                            .on_click(cx.listener(move |this, checked: &bool, _, cx| {
-                                this.toggle_field(table, index, *checked, cx);
+                            .on_click(cx.listener(move |this, checked: &bool, window, cx| {
+                                this.toggle_field(table, index, *checked, window, cx);
                             })),
                     )
                     .child(div().flex_1().child(Input::new(&row.name)))
@@ -121,7 +135,7 @@ impl ApiHelperApp {
                     .ghost()
                     .small()
                     .icon(IconName::Plus)
-                    .label("+ Add row")
+                    .label("Add row")
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.add_field(table, window, cx);
                     })),
@@ -202,16 +216,12 @@ impl ApiHelperApp {
                     .child(
                         Checkbox::new((table.enabled_id(), index))
                             .checked(field.enabled)
-                            .on_click(cx.listener(move |this, checked: &bool, _, cx| {
-                                this.toggle_field(table, index, *checked, cx);
+                            .on_click(cx.listener(move |this, checked: &bool, window, cx| {
+                                this.toggle_field(table, index, *checked, window, cx);
                             })),
                     )
                     .child(div().w(px(120.)).child(Input::new(&row.name)))
-                    .child(
-                        div()
-                            .w(px(72.))
-                            .child(Select::new(&row.field_type)),
-                    )
+                    .child(div().w(px(72.)).child(Select::new(&row.field_type)))
                     .child(value_cell)
                     .child(div().w(px(140.)).child(Input::new(&row.content_type)))
                     .child(
@@ -235,7 +245,7 @@ impl ApiHelperApp {
                     .ghost()
                     .small()
                     .icon(IconName::Plus)
-                    .label("+ Add row")
+                    .label("Add row")
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.add_field(table, window, cx);
                     })),
@@ -279,9 +289,10 @@ pub(crate) fn flush_multipart_rows(
         field.value = row.value.read(cx).value().to_string();
         field.content_type = row.content_type.read(cx).value().to_string();
         if let Some(label) = row.field_type.read(cx).selected_value()
-            && let Some(field_type) = MultipartFieldType::from_label(label) {
-                field.field_type = field_type;
-            }
+            && let Some(field_type) = MultipartFieldType::from_label(label)
+        {
+            field.field_type = field_type;
+        }
     }
 }
 
@@ -355,18 +366,34 @@ pub(crate) fn build_row_inputs<T: RowField>(
     cx: &mut Context<ApiHelperApp>,
     fields: &[T],
 ) -> Vec<RowInputs> {
+    build_row_inputs_from(
+        window,
+        cx,
+        fields,
+        |field| field.name_for_row(),
+        |field| field.value_for_row(),
+    )
+}
+
+pub(crate) fn build_row_inputs_from<T>(
+    window: &mut Window,
+    cx: &mut Context<ApiHelperApp>,
+    fields: &[T],
+    name_for_row: impl Fn(&T) -> String,
+    value_for_row: impl Fn(&T) -> String,
+) -> Vec<RowInputs> {
     fields
         .iter()
         .map(|field| {
             let name = cx.new(|cx| {
                 InputState::new(window, cx)
                     .placeholder("Key")
-                    .default_value(field.name_for_row())
+                    .default_value(name_for_row(field))
             });
             let value = cx.new(|cx| {
                 InputState::new(window, cx)
                     .placeholder("Value")
-                    .default_value(field.value_for_row())
+                    .default_value(value_for_row(field))
             });
             RowInputs { name, value }
         })

@@ -4,6 +4,8 @@ Desktop HTTP client (Postman-like) on Rust + GPUI (Zed stack).
 
 **Product architecture plan** (hybrid local-cloud client, glossary, RBAC, sharing) — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+**Environments** (model, UI, current limitations) — see [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md).
+
 ## Stack
 
 - **Rust** edition 2024
@@ -19,8 +21,8 @@ main.rs              — entry point: gpui_platform::application(), init, open_w
 src/app/mod.rs       — logic: ApiHelperApp, state, tabs, HTTP dispatch
 src/app/tab.rs       — tab state: Tab, TabSource, Params/Headers/Body panels
 src/app/ui/mod.rs    — Render impl, main layout, resizable panels
-src/app/ui/*.rs      — UI components: sidebar, tab_bar, url_bar, request, response, fields, curl
-src/domain/          — domain: HttpMethod, BodyType, Request, Collection, fields, curl, demo
+src/app/ui/*.rs      — UI components: sidebar, tab_bar, url_bar, request, response, fields, curl, environment
+src/domain/          — domain: HttpMethod, BodyType, Request, Collection, Workspace, Environment, Variable, fields, curl, demo
 src/transport/http.rs — network: build_url_with_params, send_http_request, HttpResponse
 ```
 
@@ -38,6 +40,7 @@ src/transport/http.rs — network: build_url_with_params, send_http_request, Htt
 | Request logic, headers, multipart | `src/transport/http.rs` |
 | Form field structures | `src/domain/fields.rs` |
 | Tab state | `src/app/tab.rs` |
+| Environments, variables, env selector | `src/domain/environment.rs`, `src/domain/variable.rs`, `src/app/ui/environment.rs` |
 | Subscriptions, tabs, request dispatch | `src/app/mod.rs` |
 | Layout, render, field tables | `src/app/ui/` |
 

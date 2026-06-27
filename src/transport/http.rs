@@ -1,26 +1,18 @@
 use crate::domain::{
-    classify_response_body, response_content_type, BodyType, FormField, HttpMethod, KeyValueField,
-    MultipartField, MultipartFieldType, ResponseBody,
+    build_url_with_params, classify_response_body, format_response_size, response_content_type,
+    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, MultipartFieldType,
+    ResponseBody,
 };
 
-pub fn build_url_with_params(base_url: &str, params: &[KeyValueField]) -> Result<String, String> {
-    let base = base_url.split('?').next().unwrap_or(base_url).trim();
-    if base.is_empty() {
-        return Err("URL is empty".into());
-    }
+/// Maximum response body size kept in memory (10 MiB).
+const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
 
-    let mut url = reqwest::Url::parse(base).map_err(|e| e.to_string())?;
-    {
-        let mut pairs = url.query_pairs_mut();
-        pairs.clear();
-        for field in params {
-            if field.enabled && !field.name.trim().is_empty() {
-                pairs.append_pair(field.name.trim(), &field.value);
-            }
-        }
-    }
-
-    Ok(url.to_string())
+#[derive(Debug, Clone)]
+pub struct HttpRequestBody {
+    pub body_type: BodyType,
+    pub raw_body: String,
+    pub form_fields: Vec<FormField>,
+    pub multipart_fields: Vec<MultipartField>,
 }
 
 pub async fn send_http_request(
@@ -28,10 +20,7 @@ pub async fn send_http_request(
     method: HttpMethod,
     query_params: Vec<KeyValueField>,
     headers: Vec<KeyValueField>,
-    body_type: BodyType,
-    raw_body: String,
-    form_fields: Vec<FormField>,
-    multipart_fields: Vec<MultipartField>,
+    body: HttpRequestBody,
 ) -> Result<HttpResponse, String> {
     let url = build_url_with_params(&url, &query_params)?;
 
@@ -57,12 +46,12 @@ pub async fn send_http_request(
 
     let request = apply_headers(request, &headers);
 
-    let request = apply_body(request, body_type, raw_body, form_fields, multipart_fields).await?;
+    let request = apply_body(request, body).await?;
 
     let response = request.send().await.map_err(|e| e.to_string())?;
     let status = response.status();
     let headers = parse_response_headers(response.headers());
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let bytes = read_response_bytes_limited(response, MAX_RESPONSE_BYTES).await?;
     let content_type = response_content_type(&headers);
     let body = classify_response_body(&bytes, content_type.as_deref());
     let elapsed_ms = started.elapsed().as_millis();
@@ -73,6 +62,7 @@ pub async fn send_http_request(
         headers,
         body,
         elapsed_ms,
+        size_bytes: bytes.len(),
     })
 }
 
@@ -83,6 +73,36 @@ pub struct HttpResponse {
     pub headers: Vec<KeyValueField>,
     pub body: ResponseBody,
     pub elapsed_ms: u128,
+    pub size_bytes: usize,
+}
+
+fn response_too_large_error(reported_size: usize, limit: usize) -> String {
+    format!(
+        "Response body exceeds the {} limit (reported size: {})",
+        format_response_size(limit),
+        format_response_size(reported_size),
+    )
+}
+
+async fn read_response_bytes_limited(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    if let Some(len) = response.content_length() {
+        let len = len as usize;
+        if len > max_bytes {
+            return Err(response_too_large_error(len, max_bytes));
+        }
+    }
+
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if body.len() + chunk.len() > max_bytes {
+            return Err(response_too_large_error(body.len() + chunk.len(), max_bytes));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 fn parse_response_headers(headers: &reqwest::header::HeaderMap) -> Vec<KeyValueField> {
@@ -114,31 +134,28 @@ fn apply_headers(
 
 async fn apply_body(
     request: reqwest::RequestBuilder,
-    body_type: BodyType,
-    raw_body: String,
-    form_fields: Vec<FormField>,
-    multipart_fields: Vec<MultipartField>,
+    body: HttpRequestBody,
 ) -> Result<reqwest::RequestBuilder, String> {
-    match body_type {
+    match body.body_type {
         BodyType::None => Ok(request),
         BodyType::Json => {
-            if raw_body.trim().is_empty() {
+            if body.raw_body.trim().is_empty() {
                 return Ok(request);
             }
             Ok(request
                 .header("Content-Type", "application/json")
-                .body(raw_body))
+                .body(body.raw_body))
         }
         BodyType::Xml => {
-            if raw_body.trim().is_empty() {
+            if body.raw_body.trim().is_empty() {
                 return Ok(request);
             }
             Ok(request
                 .header("Content-Type", "application/xml")
-                .body(raw_body))
+                .body(body.raw_body))
         }
-        BodyType::FormUrlEncoded => build_form_urlencoded(request, &form_fields),
-        BodyType::Multipart => build_multipart(request, &multipart_fields).await,
+        BodyType::FormUrlEncoded => build_form_urlencoded(request, &body.form_fields),
+        BodyType::Multipart => build_multipart(request, &body.multipart_fields).await,
     }
 }
 

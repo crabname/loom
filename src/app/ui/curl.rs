@@ -9,14 +9,17 @@ use gpui_component::{
     ActiveTheme as _, WindowExt as _,
 };
 
-use crate::domain::{parse_curl, request_to_curl, Request, RequestProtocol};
+use crate::domain::{parse_curl, request_to_curl, Request};
 
 use super::ApiHelperApp;
 
 #[derive(Clone, Copy)]
 pub(super) enum CurlImportTarget {
     ActiveTab,
-    Collection(usize),
+    Collection {
+        collection: usize,
+        folder: Option<usize>,
+    },
 }
 
 struct CurlDialogPanel {
@@ -106,20 +109,26 @@ impl ApiHelperApp {
         self.flush_field_inputs(cx);
         self.capture_editor_state(cx);
         let tab = self.active_tab().ok_or("No active request")?;
-        request_to_curl(&Self::request_from_tab(tab))
+        let request = tab.to_request();
+        let collection_index = tab.source.map(|source| source.collection);
+        let folder_index = tab.source.and_then(|source| source.folder);
+        let resolved = self.resolve_request_variables(&request, collection_index, folder_index);
+        request_to_curl(&resolved)
     }
 
     pub(super) fn collection_request_as_curl(
         &self,
         collection: usize,
+        folder: Option<usize>,
         request: usize,
     ) -> Result<String, String> {
         let request = self
-            .collections
+            .active_collections()
             .get(collection)
-            .and_then(|collection_data| collection_data.requests.get(request))
+            .and_then(|collection_data| collection_data.request_ref(folder, request))
             .ok_or_else(|| "Request not found".to_string())?;
-        request_to_curl(request)
+        let resolved = self.resolve_request_variables(request, Some(collection), folder);
+        request_to_curl(&resolved)
     }
 
     pub(super) fn open_import_curl_dialog(
@@ -235,22 +244,29 @@ impl ApiHelperApp {
                 self.capture_editor_state(cx);
                 self.apply_request_to_active_tab(&request, window, cx);
             }
-            CurlImportTarget::Collection(collection) => {
+            CurlImportTarget::Collection { collection, folder } => {
                 let collection_data = self
-                    .collections
+                    .active_collections_mut()
                     .get_mut(collection)
                     .expect("collection exists");
-                let number = collection_data.requests.len() + 1;
+                let request_count = match folder {
+                    None => collection_data.requests.len(),
+                    Some(folder_index) => collection_data
+                        .folders
+                        .get(folder_index)
+                        .map(|folder| folder.requests.len())
+                        .unwrap_or(0),
+                };
+                let number = request_count + 1;
                 request.name = if number == 1 {
                     "Imported Request".into()
                 } else {
                     format!("Imported Request {number}")
                 };
                 collection_data.expanded = true;
-                let request_index = collection_data.requests.len();
-                collection_data.requests.push(request);
+                let request_index = collection_data.push_request(folder, request);
                 self.refresh_collections_tree(cx);
-                self.open_request_tab(collection, request_index, window, cx);
+                self.open_request_tab(collection, folder, request_index, window, cx);
             }
         }
     }
@@ -270,25 +286,11 @@ impl ApiHelperApp {
             tab.request_body = request.body.clone();
             tab.form_fields = request.form_fields.clone();
             tab.multipart_fields = request.multipart_fields.clone();
+            tab.variables = request.variables.clone();
         }
 
         self.sync_active_tab_to_collection(cx);
         self.reload_active_tab_inputs(window, cx);
         cx.notify();
-    }
-
-    fn request_from_tab(tab: &crate::app::tab::Tab) -> Request {
-        Request {
-            name: tab.title.clone(),
-            protocol: RequestProtocol::Http,
-            method: tab.method,
-            url: tab.url.clone(),
-            query_params: tab.query_params.clone(),
-            headers: tab.headers.clone(),
-            body_type: tab.body_type,
-            body: tab.request_body.clone(),
-            form_fields: tab.form_fields.clone(),
-            multipart_fields: tab.multipart_fields.clone(),
-        }
     }
 }

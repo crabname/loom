@@ -1,6 +1,7 @@
 use crate::domain::{
-    default_form_fields, default_key_value_fields, default_multipart_fields, BodyType,
-    FormField, HttpMethod, KeyValueField, MultipartField, Request, ResponseBody, ResponseBodyView,
+    default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
+    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request, RequestProtocol,
+    ResponseBody, ResponseBodyView, Variable,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,12 +15,22 @@ pub enum RequestPanelTab {
     Params,
     Headers,
     Body,
+    Vars,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TabSource {
+    pub workspace: usize,
     pub collection: usize,
+    pub folder: Option<usize>,
     pub request: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkspaceSession {
+    pub tabs: Vec<Tab>,
+    pub active_tab: usize,
+    pub active_environment: Option<crate::domain::EnvironmentRef>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,11 +47,16 @@ pub struct Tab {
     pub request_body: String,
     pub form_fields: Vec<FormField>,
     pub multipart_fields: Vec<MultipartField>,
+    pub variables: Vec<Variable>,
     pub response_panel_tab: ResponsePanelTab,
     pub response_body: ResponseBody,
     pub response_body_view: ResponseBodyView,
     pub response_headers: Vec<KeyValueField>,
-    pub response_status: Option<String>,
+    pub response_http_status: Option<u16>,
+    pub response_status_text: Option<String>,
+    pub response_elapsed_ms: Option<u128>,
+    pub response_size_bytes: Option<usize>,
+    pub response_error: Option<String>,
     pub loading: bool,
 }
 
@@ -59,11 +75,16 @@ impl Tab {
             request_body: request.body.clone(),
             form_fields: request.form_fields.clone(),
             multipart_fields: request.multipart_fields.clone(),
+            variables: request.variables.clone(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
             response_headers: Vec::new(),
-            response_status: None,
+            response_http_status: None,
+            response_status_text: None,
+            response_elapsed_ms: None,
+            response_size_bytes: None,
+            response_error: None,
             loading: false,
         }
     }
@@ -82,12 +103,33 @@ impl Tab {
             request_body: String::new(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
+            variables: default_variables(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
             response_headers: Vec::new(),
-            response_status: None,
+            response_http_status: None,
+            response_status_text: None,
+            response_elapsed_ms: None,
+            response_size_bytes: None,
+            response_error: None,
             loading: false,
+        }
+    }
+
+    pub fn to_request(&self) -> Request {
+        Request {
+            name: self.title.clone(),
+            protocol: RequestProtocol::Http,
+            method: self.method,
+            url: self.url.clone(),
+            query_params: self.query_params.clone(),
+            headers: self.headers.clone(),
+            body_type: self.body_type,
+            body: self.request_body.clone(),
+            form_fields: self.form_fields.clone(),
+            multipart_fields: self.multipart_fields.clone(),
+            variables: self.variables.clone(),
         }
     }
 }

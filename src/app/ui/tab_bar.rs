@@ -1,7 +1,7 @@
 use gpui::*;
 use gpui_component::{
     button::{Button, ButtonVariants as _},
-    h_flex,
+    h_flex, v_flex,
     tab::{Tab as TabChip, TabBar},
     ActiveTheme as _, IconName, Sizable as _,
 };
@@ -9,7 +9,7 @@ use gpui_component::{
 use super::ApiHelperApp;
 
 impl ApiHelperApp {
-    pub(super) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(super) fn render_tab_bar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let mut bar = TabBar::new("request-tabs")
             .selected_index(self.active_tab)
             .on_click(cx.listener(|this, index: &usize, window, cx| {
@@ -33,22 +33,39 @@ impl ApiHelperApp {
             );
         }
 
-        h_flex()
+        v_flex()
             .w_full()
-            .gap_2()
-            .p_2()
             .flex_shrink_0()
             .bg(cx.theme().sidebar)
             .border_b_1()
             .border_color(cx.theme().border)
-            .child(div().flex_1().min_w_0().child(bar))
             .child(
-                Button::new("new-tab")
-                    .ghost()
-                    .icon(IconName::Plus)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.add_empty_tab(window, cx);
-                    })),
+                h_flex()
+                    .w_full()
+                    .gap_2()
+                    .px_3()
+                    .py_1p5()
+                    .items_center()
+                    .justify_end()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(self.render_environment_bar(cx)),
+            )
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap_2()
+                    .p_2()
+                    .items_center()
+                    .child(div().flex_1().min_w_0().child(bar))
+                    .child(
+                        Button::new("new-tab")
+                            .ghost()
+                            .icon(IconName::Plus)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.add_empty_tab(window, cx);
+                            })),
+                    ),
             )
     }
 }

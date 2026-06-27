@@ -1,6 +1,7 @@
 use super::{
-    default_form_fields, default_key_value_fields, default_multipart_fields, BodyType, FormField,
-    HttpMethod, KeyValueField, MultipartField, MultipartFieldType, Request, RequestProtocol,
+    default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
+    format_request_url, split_query_params, BodyType, FormField, HttpMethod, KeyValueField,
+    MultipartField, MultipartFieldType, Request, RequestProtocol,
 };
 
 pub fn request_to_curl(request: &Request) -> Result<String, String> {
@@ -8,7 +9,7 @@ pub fn request_to_curl(request: &Request) -> Result<String, String> {
         return Err("Only HTTP requests can be exported to cURL".into());
     }
 
-    let url = build_url(&request.url, &request.query_params)?;
+    let url = format_request_url(&request.url, &request.query_params);
     let mut parts = vec!["curl".to_string()];
 
     if request.method != HttpMethod::Get {
@@ -141,7 +142,7 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
         return Err("cURL command is missing a URL".into());
     }
 
-    let (base_url, mut query_params) = split_url(&url);
+    let (base_url, mut query_params) = split_query_params(&url);
     if use_get && !data_parts.is_empty() {
         for part in &data_parts {
             if let Some((name, value)) = part.split_once('=') {
@@ -202,6 +203,7 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
                     body: String::new(),
                     form_fields,
                     multipart_fields: default_multipart_fields(),
+                    variables: default_variables(),
                 });
             }
             _ => BodyType::Json,
@@ -220,31 +222,8 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
         body,
         form_fields,
         multipart_fields,
+        variables: default_variables(),
     })
-}
-
-fn build_url(base_url: &str, params: &[KeyValueField]) -> Result<String, String> {
-    let base = base_url.split('?').next().unwrap_or(base_url).trim();
-    if base.is_empty() {
-        return Err("URL is empty".into());
-    }
-
-    let enabled: Vec<_> = enabled_fields(params).collect();
-    if enabled.is_empty() {
-        return Ok(base.to_string());
-    }
-
-    let mut url = base.to_string();
-    url.push('?');
-    for (index, field) in enabled.iter().enumerate() {
-        if index > 0 {
-            url.push('&');
-        }
-        url.push_str(&percent_encode(&field.name));
-        url.push('=');
-        url.push_str(&percent_encode(&field.value));
-    }
-    Ok(url)
 }
 
 fn tokenize_curl(input: &str) -> Result<Vec<String>, String> {
@@ -316,31 +295,6 @@ fn split_header(value: &str) -> Result<(String, String), String> {
     Ok((name.trim().to_string(), header_value.trim().to_string()))
 }
 
-fn split_url(url: &str) -> (String, Vec<KeyValueField>) {
-    let Some((base, query)) = url.split_once('?') else {
-        return (url.to_string(), default_key_value_fields());
-    };
-
-    let mut query_params = Vec::new();
-    for pair in query.split('&') {
-        if pair.is_empty() {
-            continue;
-        }
-        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
-        query_params.push(KeyValueField {
-            enabled: true,
-            name: percent_decode(name),
-            value: percent_decode(value),
-        });
-    }
-
-    if query_params.is_empty() {
-        (base.to_string(), default_key_value_fields())
-    } else {
-        (base.to_string(), query_params)
-    }
-}
-
 fn parse_form_field(part: String) -> Result<FormField, String> {
     let (name, value) = part
         .split_once('=')
@@ -361,8 +315,8 @@ fn parse_form_body(body: &str) -> Result<Vec<FormField>, String> {
         let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
         fields.push(FormField {
             enabled: true,
-            name: percent_decode(name),
-            value: percent_decode(value),
+            name: super::url::percent_decode(name),
+            value: super::url::percent_decode(value),
         });
     }
     if fields.is_empty() {
@@ -395,15 +349,15 @@ fn parse_multipart_field(part: String) -> Result<MultipartField, String> {
     }
 }
 
-fn enabled_fields<'a>(fields: &'a [KeyValueField]) -> impl Iterator<Item = &'a KeyValueField> {
+fn enabled_fields(fields: &[KeyValueField]) -> impl Iterator<Item = &KeyValueField> {
     fields
         .iter()
         .filter(|field| field.enabled && !field.name.trim().is_empty())
 }
 
-fn enabled_multipart_fields<'a>(
-    fields: &'a [MultipartField],
-) -> impl Iterator<Item = &'a MultipartField> {
+fn enabled_multipart_fields(
+    fields: &[MultipartField],
+) -> impl Iterator<Item = &MultipartField> {
     fields
         .iter()
         .filter(|field| field.enabled && !field.name.trim().is_empty())
@@ -427,40 +381,6 @@ fn shell_single_quoted(value: &str) -> String {
     }
 }
 
-fn percent_encode(value: &str) -> String {
-    let mut encoded = String::new();
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char);
-            }
-            _ => encoded.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    encoded
-}
-
-fn percent_decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut decoded = String::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(
-                std::str::from_utf8(&bytes[index + 1..index + 3]).unwrap_or(""),
-                16,
-            ) {
-                decoded.push(byte as char);
-                index += 3;
-                continue;
-            }
-        }
-        decoded.push(bytes[index] as char);
-        index += 1;
-    }
-    decoded
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,6 +398,7 @@ mod tests {
             body: String::new(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
+            variables: default_variables(),
         };
 
         let curl = request_to_curl(&request).unwrap();
@@ -503,6 +424,7 @@ mod tests {
             body: r#"{"name":"Alice"}"#.into(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
+            variables: default_variables(),
         };
 
         let curl = request_to_curl(&request).unwrap();
@@ -575,6 +497,7 @@ mod tests {
             body: String::new(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
+            variables: default_variables(),
         };
 
         let curl = request_to_curl(&request).unwrap();

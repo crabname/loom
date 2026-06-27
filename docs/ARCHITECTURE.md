@@ -84,8 +84,11 @@ Variables are split by visibility level and strictly isolated to prevent leaks:
 | Level | Storage | Notes |
 |-------|---------|-------|
 | Scripts (Pre-request / Tests) | Inside collections / requests | Tied to API logic |
-| Public environment variables | In the workspace | Available to all members |
+| Collection environment variables | Inside the collection | Higher priority; override workspace keys with the same name |
+| Workspace environment variables (global) | Workspace root | Shared across all collections in the workspace |
 | Secret tokens / passwords | `.env.local` or in-memory session | **Never** committed to Git or sent to the server without encryption |
+
+Workspace vs collection environments, merge rules, and script API (`getEnvVar` with workspace fallback) — see [ENVIRONMENTS.md](ENVIRONMENTS.md#workspace-vs-collection-scope).
 
 ---
 
@@ -139,10 +142,17 @@ sequenceDiagram
 
 ## Relationship to Current Implementation
 
-The repository currently implements a desktop client with in-memory collections and demo data. Modules `src/domain/`, `src/app/`, and `src/transport/` form the foundation for UI and HTTP transport. Next steps per this plan:
+The repository currently implements a desktop client with in-memory collections and demo data. Modules `src/domain/`, `src/app/`, and `src/transport/` form the foundation for UI and HTTP transport.
+
+**Implemented (partial):**
+
+- Workspace and collection model with in-memory demo data
+- Environments at workspace and collection scope, variable editor in a dialog — see [ENVIRONMENTS.md](ENVIRONMENTS.md)
+
+**Next steps per this plan:**
 
 1. `StorageProvider` trait and `LocalStorageProvider` (YAML on disk)
-2. Workspace and environment model
+2. Variable substitution in requests; variables at workspace / collection / request level outside environments
 3. `CloudStorageProvider` + backend API
 4. RBAC, collection sharing, Quick Share / snapshots
 

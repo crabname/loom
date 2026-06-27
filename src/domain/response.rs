@@ -20,13 +20,6 @@ impl ResponseBody {
             Self::Binary { .. } => false,
         }
     }
-
-    pub fn text(&self) -> Option<&str> {
-        match self {
-            Self::Text(text) => Some(text),
-            Self::Binary { .. } => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,13 +141,13 @@ pub fn classify_response_body(
     bytes: &[u8],
     content_type: Option<&str>,
 ) -> ResponseBody {
-    if let Some(content_type) = content_type {
-        if is_binary_content_type(content_type) {
-            return ResponseBody::Binary {
-                size: bytes.len(),
-                content_type: Some(content_type.to_string()),
-            };
-        }
+    if let Some(content_type) = content_type
+        && is_binary_content_type(content_type)
+    {
+        return ResponseBody::Binary {
+            size: bytes.len(),
+            content_type: Some(content_type.to_string()),
+        };
     }
 
     match std::str::from_utf8(bytes) {
@@ -176,14 +169,14 @@ fn prettify_text_body(body: &str, content_type: Option<&str>) -> String {
 }
 
 pub fn format_binary_body_message(size: usize, content_type: Option<&str>) -> String {
-    let size_label = format_binary_size(size);
+    let size_label = format_response_size(size);
     match content_type {
         Some(content_type) => format!("Binary response ({content_type}, {size_label})"),
         None => format!("Binary response ({size_label})"),
     }
 }
 
-fn format_binary_size(size: usize) -> String {
+pub fn format_response_size(size: usize) -> String {
     const KIB: f64 = 1024.0;
     let size = size as f64;
     if size < KIB {
@@ -222,7 +215,10 @@ mod tests {
     #[test]
     fn classifies_json_text() {
         let body = classify_response_body(br#"{"a":1}"#, Some("application/json"));
-        assert_eq!(body.text(), Some("{\n  \"a\": 1\n}"));
+        assert_eq!(
+            body,
+            ResponseBody::Text("{\n  \"a\": 1\n}".into())
+        );
     }
 
     #[test]

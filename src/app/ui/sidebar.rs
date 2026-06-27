@@ -5,6 +5,7 @@ use gpui_component::{
     h_flex, v_flex,
     list::ListItem,
     menu::PopupMenuItem,
+    select::Select,
     tree::{tree, TreeItem},
     ActiveTheme as _, IconName, Sizable as _, StyledExt as _,
 };
@@ -13,6 +14,14 @@ use crate::domain::{Collection, HttpMethod, RequestProtocol};
 use crate::app::tab::TabSource;
 
 use super::ApiHelperApp;
+use super::rename::RenameTarget;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RequestTreeId {
+    pub collection: usize,
+    pub folder: Option<usize>,
+    pub request: usize,
+}
 
 fn protocol_icon(protocol: RequestProtocol) -> IconName {
     match protocol {
@@ -35,18 +44,85 @@ pub(crate) fn collection_tree_id(collection: usize) -> String {
     format!("collection:{collection}")
 }
 
-pub(crate) fn request_tree_id(collection: usize, request: usize) -> SharedString {
-    format!("request:{collection}:{request}").into()
+pub(crate) fn folder_tree_id(collection: usize, folder: usize) -> String {
+    format!("folder:{collection}:{folder}")
+}
+
+pub(crate) fn request_tree_id(
+    collection: usize,
+    folder: Option<usize>,
+    request: usize,
+) -> SharedString {
+    match folder {
+        None => format!("request:{collection}:r:{request}").into(),
+        Some(folder) => format!("request:{collection}:f:{folder}:{request}").into(),
+    }
 }
 
 pub(crate) fn parse_collection_tree_id(id: &SharedString) -> Option<usize> {
     id.strip_prefix("collection:")?.parse().ok()
 }
 
-fn parse_request_tree_id(id: &SharedString) -> Option<(usize, usize)> {
+pub(crate) fn parse_folder_tree_id(id: &SharedString) -> Option<(usize, usize)> {
+    let rest = id.strip_prefix("folder:")?;
+    let (collection, folder) = rest.split_once(':')?;
+    Some((collection.parse().ok()?, folder.parse().ok()?))
+}
+
+pub(crate) fn parse_request_tree_id(id: &SharedString) -> Option<RequestTreeId> {
     let rest = id.strip_prefix("request:")?;
-    let (collection, request) = rest.split_once(':')?;
-    Some((collection.parse().ok()?, request.parse().ok()?))
+    let (collection, rest) = rest.split_once(':')?;
+    let collection = collection.parse().ok()?;
+
+    if let Some(request) = rest.strip_prefix("r:") {
+        return Some(RequestTreeId {
+            collection,
+            folder: None,
+            request: request.parse().ok()?,
+        });
+    }
+
+    let rest = rest.strip_prefix("f:")?;
+    let (folder, request) = rest.split_once(':')?;
+    Some(RequestTreeId {
+        collection,
+        folder: Some(folder.parse().ok()?),
+        request: request.parse().ok()?,
+    })
+}
+
+fn build_folder_tree_items(collection_index: usize, folder_index: usize, folder: &crate::domain::CollectionFolder) -> TreeItem {
+    TreeItem::new(
+        folder_tree_id(collection_index, folder_index),
+        folder.name.clone(),
+    )
+    .expanded(folder.expanded)
+    .children(folder.requests.iter().enumerate().map(|(request_index, request)| {
+        TreeItem::new(
+            request_tree_id(collection_index, Some(folder_index), request_index),
+            request.name.clone(),
+        )
+    }))
+}
+
+fn build_collection_children(collection_index: usize, collection: &Collection) -> Vec<TreeItem> {
+    let mut children = collection
+        .folders
+        .iter()
+        .enumerate()
+        .map(|(folder_index, folder)| {
+            build_folder_tree_items(collection_index, folder_index, folder)
+        })
+        .collect::<Vec<_>>();
+
+    children.extend(collection.requests.iter().enumerate().map(|(request_index, request)| {
+        TreeItem::new(
+            request_tree_id(collection_index, None, request_index),
+            request.name.clone(),
+        )
+    }));
+
+    children
 }
 
 pub(crate) fn build_collection_tree_items(collections: &[Collection]) -> Vec<TreeItem> {
@@ -56,14 +132,7 @@ pub(crate) fn build_collection_tree_items(collections: &[Collection]) -> Vec<Tre
         .map(|(collection_index, collection)| {
             TreeItem::new(collection_tree_id(collection_index), collection.name.clone())
                 .expanded(collection.expanded)
-                .children(collection.requests.iter().enumerate().map(
-                    |(request_index, request)| {
-                        TreeItem::new(
-                            request_tree_id(collection_index, request_index),
-                            request.name.clone(),
-                        )
-                    },
-                ))
+                .children(build_collection_children(collection_index, collection))
         })
         .collect()
 }
@@ -90,6 +159,18 @@ impl ApiHelperApp {
                             .flex_shrink_0()
                             .text_sm()
                             .font_semibold()
+                            .child("Workspace"),
+                    )
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .child(Select::new(&self.workspace_select)),
+                    )
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .text_sm()
+                            .font_semibold()
                             .child("Collections"),
                     )
                     .child(
@@ -99,22 +180,23 @@ impl ApiHelperApp {
                             view.update(cx, |this, cx| {
                                 let item = entry.item();
                                 let is_folder = entry.is_folder();
-                                let collection_index = is_folder.then(|| {
-                                    parse_collection_tree_id(&item.id)
-                                }).flatten();
-                                let icon = if is_folder {
+                                let collection_index = parse_collection_tree_id(&item.id);
+                                let folder_location = parse_folder_tree_id(&item.id);
+                                let request_location = parse_request_tree_id(&item.id);
+
+                                let icon = if collection_index.is_some() {
+                                    IconName::Inbox
+                                } else if folder_location.is_some() {
                                     if entry.is_expanded() {
                                         IconName::FolderOpen
                                     } else {
                                         IconName::Folder
                                     }
-                                } else if let Some((collection_index, request_index)) =
-                                    parse_request_tree_id(&item.id)
-                                {
-                                    this.collections
-                                        .get(collection_index)
+                                } else if let Some(location) = request_location {
+                                    this.active_collections()
+                                        .get(location.collection)
                                         .and_then(|collection| {
-                                            collection.requests.get(request_index)
+                                            collection.request_ref(location.folder, location.request)
                                         })
                                         .map(|request| protocol_icon(request.protocol))
                                         .unwrap_or(IconName::File)
@@ -122,16 +204,17 @@ impl ApiHelperApp {
                                     IconName::File
                                 };
 
-                                let is_active = !is_folder
-                                    && parse_request_tree_id(&item.id).is_some_and(|source| {
-                                        this.active_tab().and_then(|tab| tab.source)
-                                            == Some(TabSource {
-                                                collection: source.0,
-                                                request: source.1,
-                                            })
-                                    });
+                                let is_active = request_location.is_some_and(|location| {
+                                    this.active_tab().and_then(|tab| tab.source)
+                                        == Some(TabSource {
+                                            workspace: this.active_workspace,
+                                            collection: location.collection,
+                                            folder: location.folder,
+                                            request: location.request,
+                                        })
+                                });
 
-                                let label = if is_folder {
+                                let label = if let Some(collection_index) = collection_index {
                                     h_flex()
                                         .w_full()
                                         .items_center()
@@ -143,33 +226,85 @@ impl ApiHelperApp {
                                                 .child(icon)
                                                 .child(item.label.clone()),
                                         )
-                                        .when_some(collection_index, |this, collection_index| {
-                                            this.child(
-                                                Button::new(("add-request", collection_index))
-                                                    .ghost()
-                                                    .xsmall()
-                                                    .icon(IconName::Plus)
-                                                    .on_click(cx.listener(
-                                                        move |this, _, window, cx| {
-                                                            cx.stop_propagation();
-                                                            this.add_request_to_collection(
-                                                                collection_index,
-                                                                window,
-                                                                cx,
-                                                            );
-                                                        },
-                                                    )),
-                                            )
-                                        })
+                                        .child(
+                                            h_flex()
+                                                .gap_0p5()
+                                                .child(
+                                                    Button::new(("add-folder", collection_index))
+                                                        .ghost()
+                                                        .xsmall()
+                                                        .icon(IconName::Folder)
+                                                        .tooltip("New folder")
+                                                        .on_click(cx.listener(
+                                                            move |this, _, window, cx| {
+                                                                cx.stop_propagation();
+                                                                this.add_folder_to_collection(
+                                                                    collection_index,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        )),
+                                                )
+                                                .child(
+                                                    Button::new(("add-request", collection_index))
+                                                        .ghost()
+                                                        .xsmall()
+                                                        .icon(IconName::Plus)
+                                                        .tooltip("New request")
+                                                        .on_click(cx.listener(
+                                                            move |this, _, window, cx| {
+                                                                cx.stop_propagation();
+                                                                this.add_request_to_collection(
+                                                                    collection_index,
+                                                                    None,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        )),
+                                                ),
+                                        )
                                         .into_any_element()
-                                } else if let Some((collection_index, request_index)) =
-                                    parse_request_tree_id(&item.id)
-                                {
+                                } else if let Some((collection_index, folder_index)) = folder_location {
+                                    h_flex()
+                                        .w_full()
+                                        .items_center()
+                                        .justify_between()
+                                        .gap_2()
+                                        .child(
+                                            h_flex()
+                                                .gap_2()
+                                                .child(icon)
+                                                .child(item.label.clone()),
+                                        )
+                                        .child(
+                                            Button::new(format!(
+                                                "add-request-folder:{collection_index}:{folder_index}"
+                                            ))
+                                                .ghost()
+                                                .xsmall()
+                                                .icon(IconName::Plus)
+                                                .tooltip("New request")
+                                                .on_click(cx.listener(
+                                                    move |this, _, window, cx| {
+                                                        cx.stop_propagation();
+                                                        this.add_request_to_collection(
+                                                            collection_index,
+                                                            Some(folder_index),
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    },
+                                                )),
+                                        )
+                                        .into_any_element()
+                                } else if let Some(location) = request_location {
                                     let request = this
-                                        .collections
-                                        .get(collection_index)
+                                        .active_collections()
+                                        .get(location.collection)
                                         .and_then(|collection| {
-                                            collection.requests.get(request_index)
+                                            collection.request_ref(location.folder, location.request)
                                         });
 
                                     if let Some(request) = request {
@@ -192,7 +327,10 @@ impl ApiHelperApp {
                                             )
                                             .child(
                                                 Button::new(format!(
-                                                    "delete-request:{collection_index}:{request_index}"
+                                                    "delete-request:{}:{}:{}",
+                                                    location.collection,
+                                                    location.folder.map_or("r".into(), |folder| folder.to_string()),
+                                                    location.request
                                                 ))
                                                     .ghost()
                                                     .xsmall()
@@ -201,8 +339,9 @@ impl ApiHelperApp {
                                                         move |this, _, window, cx| {
                                                             cx.stop_propagation();
                                                             this.delete_request_from_collection(
-                                                                collection_index,
-                                                                request_index,
+                                                                location.collection,
+                                                                location.folder,
+                                                                location.request,
                                                                 window,
                                                                 cx,
                                                             );
@@ -234,12 +373,11 @@ impl ApiHelperApp {
                                         list_item.on_click(cx.listener({
                                             let item_id = item.id.clone();
                                             move |this, _, window, cx| {
-                                                if let Some((collection, request)) =
-                                                    parse_request_tree_id(&item_id)
-                                                {
+                                                if let Some(location) = parse_request_tree_id(&item_id) {
                                                     this.open_request_tab(
-                                                        collection,
-                                                        request,
+                                                        location.collection,
+                                                        location.folder,
+                                                        location.request,
                                                         window,
                                                         cx,
                                                     );
@@ -253,16 +391,42 @@ impl ApiHelperApp {
                         .context_menu({
                             let view = tree_view;
                             move |_ix, entry, menu, _window, _cx| {
-                                if entry.is_folder() {
-                                    let Some(collection_index) =
-                                        parse_collection_tree_id(&entry.item().id)
-                                    else {
-                                        return menu;
-                                    };
-
+                                if let Some(collection_index) =
+                                    parse_collection_tree_id(&entry.item().id)
+                                {
+                                    let view_for_rename = view.clone();
+                                    let view_for_folder = view.clone();
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
                                     return menu
+                                        .item(
+                                            PopupMenuItem::new("Rename")
+                                                .icon(IconName::Replace)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_rename.update(cx, |this, cx| {
+                                                        this.open_rename_dialog(
+                                                            RenameTarget::Collection {
+                                                                collection: collection_index,
+                                                            },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("New Folder")
+                                                .icon(IconName::Folder)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_folder.update(cx, |this, cx| {
+                                                        this.add_folder_to_collection(
+                                                            collection_index,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
                                         .item(
                                             PopupMenuItem::new("New Request")
                                                 .icon(IconName::Plus)
@@ -270,6 +434,7 @@ impl ApiHelperApp {
                                                     view_for_new.update(cx, |this, cx| {
                                                         this.add_request_to_collection(
                                                             collection_index,
+                                                            None,
                                                             window,
                                                             cx,
                                                         );
@@ -282,9 +447,10 @@ impl ApiHelperApp {
                                                 .on_click(move |_, window, cx| {
                                                     view_for_import.update(cx, |this, cx| {
                                                         this.open_import_curl_dialog(
-                                                            super::curl::CurlImportTarget::Collection(
-                                                                collection_index,
-                                                            ),
+                                                            super::curl::CurlImportTarget::Collection {
+                                                                collection: collection_index,
+                                                                folder: None,
+                                                            },
                                                             window,
                                                             cx,
                                                         );
@@ -293,23 +459,95 @@ impl ApiHelperApp {
                                         );
                                 }
 
-                                let Some((collection_index, request_index)) =
-                                    parse_request_tree_id(&entry.item().id)
-                                else {
+                                if let Some((collection_index, folder_index)) =
+                                    parse_folder_tree_id(&entry.item().id)
+                                {
+                                    let view_for_rename = view.clone();
+                                    let view_for_new = view.clone();
+                                    let view_for_import = view.clone();
+                                    return menu
+                                        .item(
+                                            PopupMenuItem::new("Rename")
+                                                .icon(IconName::Replace)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_rename.update(cx, |this, cx| {
+                                                        this.open_rename_dialog(
+                                                            RenameTarget::Folder {
+                                                                collection: collection_index,
+                                                                folder: folder_index,
+                                                            },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("New Request")
+                                                .icon(IconName::Plus)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_new.update(cx, |this, cx| {
+                                                        this.add_request_to_collection(
+                                                            collection_index,
+                                                            Some(folder_index),
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Import cURL")
+                                                .icon(IconName::ArrowDown)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_import.update(cx, |this, cx| {
+                                                        this.open_import_curl_dialog(
+                                                            super::curl::CurlImportTarget::Collection {
+                                                                collection: collection_index,
+                                                                folder: Some(folder_index),
+                                                            },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        );
+                                }
+
+                                let Some(location) = parse_request_tree_id(&entry.item().id) else {
                                     return menu;
                                 };
 
+                                let view_for_rename = view.clone();
                                 let view_for_export = view.clone();
                                 let view_for_delete = view.clone();
                                 menu.item(
+                                    PopupMenuItem::new("Rename")
+                                        .icon(IconName::Replace)
+                                        .on_click(move |_, window, cx| {
+                                            view_for_rename.update(cx, |this, cx| {
+                                                this.open_rename_dialog(
+                                                    RenameTarget::Request {
+                                                        collection: location.collection,
+                                                        folder: location.folder,
+                                                        request: location.request,
+                                                    },
+                                                    window,
+                                                    cx,
+                                                );
+                                            });
+                                        }),
+                                )
+                                .item(
                                     PopupMenuItem::new("Export cURL")
                                         .icon(IconName::Copy)
                                         .on_click({
                                             move |_, window, cx| {
                                                 let curl = view_for_export.read(cx)
                                                     .collection_request_as_curl(
-                                                        collection_index,
-                                                        request_index,
+                                                        location.collection,
+                                                        location.folder,
+                                                        location.request,
                                                     );
                                                 view_for_export.update(cx, |this, cx| {
                                                     this.open_export_curl_dialog(curl, window, cx);
@@ -323,8 +561,9 @@ impl ApiHelperApp {
                                         .on_click(move |_, window, cx| {
                                             view_for_delete.update(cx, |this, cx| {
                                                 this.delete_request_from_collection(
-                                                    collection_index,
-                                                    request_index,
+                                                    location.collection,
+                                                    location.folder,
+                                                    location.request,
                                                     window,
                                                     cx,
                                                 );
