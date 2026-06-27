@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Проект
 
-Desktop HTTP-клиент на Rust + GPUI. Обзор архитектуры — в `AGENTS.md`.
+Desktop HTTP-клиент на Rust + GPUI. Архитектурный план продукта — в `docs/ARCHITECTURE.md`, текущая структура модулей — в `AGENTS.md`.
 
 ## Scope изменений
 

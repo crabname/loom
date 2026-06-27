@@ -1,62 +1,64 @@
 # api-helper
 
-Desktop HTTP-клиент (Postman-like) на Rust + GPUI (стек Zed).
+Desktop HTTP client (Postman-like) on Rust + GPUI (Zed stack).
 
-## Стек
+**Product architecture plan** (hybrid local-cloud client, glossary, RBAC, sharing) — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Stack
 
 - **Rust** edition 2024
-- **GPUI** — UI-фреймворк из [zed-industries/zed](https://github.com/zed-industries/zed) (git rev в `Cargo.toml`)
-- **gpui-component** — локальный path dependency: `../gpui-component/crates/ui`
-- **reqwest** 0.12 (`rustls-tls`, без default-features) + **tokio**
-- **anyhow** — для ошибок на верхнем уровне (HTTP-слой пока использует `Result<_, String>`)
+- **GPUI** — UI framework from [zed-industries/zed](https://github.com/zed-industries/zed) (git rev in `Cargo.toml`)
+- **gpui-component** — local path dependency: `../gpui-component/crates/ui`
+- **reqwest** 0.12 (`rustls-tls`, no default-features) + **tokio**
+- **anyhow** — top-level errors (HTTP layer currently uses `Result<_, String>`)
 
-## Архитектура модулей
+## Module Architecture
 
 ```
-main.rs         — точка входа: gpui_platform::application(), init, open_window
-src/app/mod.rs  — логика: ApiHelperApp, состояние, вкладки, HTTP-отправка
-src/app/ui.rs   — UI: Render, layout, sidebar, панели, таблицы полей
-src/models.rs   — домен: HttpMethod, BodyType, Request, Collection, demo_collections()
-src/http.rs     — сеть: build_url_with_params, send_http_request, HttpResponse
-src/forms.rs    — типы полей: FormField, KeyValueField, MultipartField
-src/tabs.rs     — состояние вкладки: Tab, TabSource, панели Params/Headers/Body
+main.rs              — entry point: gpui_platform::application(), init, open_window
+src/app/mod.rs       — logic: ApiHelperApp, state, tabs, HTTP dispatch
+src/app/tab.rs       — tab state: Tab, TabSource, Params/Headers/Body panels
+src/app/ui/mod.rs    — Render impl, main layout, resizable panels
+src/app/ui/*.rs      — UI components: sidebar, tab_bar, url_bar, request, response, fields, curl
+src/domain/          — domain: HttpMethod, BodyType, Request, Collection, fields, curl, demo
+src/transport/http.rs — network: build_url_with_params, send_http_request, HttpResponse
 ```
 
-### Поток данных
+### Data Flow
 
-1. Пользователь редактирует запрос в UI (`app.rs`) → состояние хранится в `Tab` и синхронизируется с `Collection`.
-2. Send → `cx.spawn` клонирует данные вкладки → `send_http_request()` в `http.rs`.
-3. Результат → `finish_request()` обновляет `Tab.response_*`.
+1. User edits a request in the UI (`app/mod.rs`) → state lives in `Tab` and syncs with `Collection`.
+2. Send → `cx.spawn` clones tab data → `send_http_request()` in `transport/http.rs`.
+3. Result → `finish_request()` updates `Tab.response_*`.
 
-### Границы ответственности
+### Responsibility Boundaries
 
-| Задача | Модуль |
-|--------|--------|
-| Новый тип тела / метод HTTP | `models.rs` |
-| Логика запроса, заголовки, multipart | `http.rs` |
-| Структуры полей форм | `forms.rs` |
-| Состояние вкладки | `tabs.rs` |
-| Подписки, вкладки, отправка запроса | `app/mod.rs` |
-| Layout, рендер, таблицы полей | `app/ui.rs` |
+| Task | Module |
+|------|--------|
+| New body type / HTTP method | `src/domain/` |
+| Request logic, headers, multipart | `src/transport/http.rs` |
+| Form field structures | `src/domain/fields.rs` |
+| Tab state | `src/app/tab.rs` |
+| Subscriptions, tabs, request dispatch | `src/app/mod.rs` |
+| Layout, render, field tables | `src/app/ui/` |
 
-**Не смешивать:** HTTP-логику в `app/`, UI-разметку в `http.rs`. Новый UI → `app/ui.rs`, новая логика состояния → `app/mod.rs`.
+**Do not mix:** HTTP logic in `app/`, UI markup in `transport/`. New UI → `src/app/ui/`, new state logic → `src/app/mod.rs`.
 
-## Ключевые паттерны GPUI
+## Key GPUI Patterns
 
 - `ApiHelperApp::open()` → `cx.new(|cx| Self::new(...))` → `Entity<ApiHelperApp>`
-- Поля ввода: `Entity<InputState>`, селекты: `Entity<SelectState<...>>`
-- Подписки: `cx.subscribe_in(&entity, window, ...)` → хранить в `_subscriptions`
+- Text inputs: `Entity<InputState>`, selects: `Entity<SelectState<...>>`
+- Subscriptions: `cx.subscribe_in(&entity, window, ...)` → store in `_subscriptions`
 - Async HTTP: `cx.spawn(async move |this, cx| { ... }).detach()`
-- Обновление UI после async: `this.update(cx, |app, cx| { ...; cx.notify() })`
-- Рендер: `impl Render for ApiHelperApp`
+- UI update after async: `this.update(cx, |app, cx| { ...; cx.notify() })`
+- Render: `impl Render for ApiHelperApp` in `src/app/ui/mod.rs`
 
-## Внешние зависимости
+## External Dependencies
 
-- **Не менять** `../gpui-component` из этого репозитория без явного запроса
-- **Не обновлять** git `rev` для `gpui` / `gpui_platform` без согласования
-- Новые crates в `Cargo.toml` — только при реальной необходимости
+- **Do not modify** `../gpui-component` from this repository without an explicit request
+- **Do not bump** git `rev` for `gpui` / `gpui_platform` without coordination
+- New crates in `Cargo.toml` — only when genuinely needed
 
-## Сборка и проверка
+## Build and Verification
 
 ```bash
 cargo check
@@ -64,11 +66,11 @@ cargo build
 cargo run
 ```
 
-После изменений в `src/` запускать `cargo check` минимум.
+After changes in `src/`, run `cargo check` at minimum.
 
-## Ограничения для агента
+## Agent Constraints
 
-- Минимальный diff; UI в `app/ui.rs`, логика в `app/mod.rs`
-- Не добавлять тесты/документацию, если не просили
-- Коммиты — только по явному запросу пользователя
-- Ответы пользователю — на русском, код и идентификаторы — как в проекте
+- Minimal diff; UI in `src/app/ui/`, logic in `src/app/mod.rs`
+- Do not add tests or documentation unless asked
+- Commits — only on explicit user request
+- User-facing responses — in Russian; code and identifiers — as in the project
