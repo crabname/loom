@@ -1,0 +1,63 @@
+---
+description: Rust и GPUI-паттерны api-helper
+globs: src/**/*.rs
+alwaysApply: false
+---
+
+# Rust / GPUI
+
+## Стиль
+
+- Следовать существующим конвенциям файла, в котором редактируешь
+- `mod` объявляются в `main.rs`; новый модуль → добавить `mod` и файл в `src/`
+- Предпочитать явные типы ошибок в HTTP-слое (`Result<_, String>`), не менять на `anyhow` без запроса
+
+## GPUI: состояние и UI
+
+- Корневой view: `ApiHelperApp` (`Entity<Self>`)
+- Создание entity: `cx.new(|cx| ...)` в `open()` / `new()`
+- Input: `InputState::new(window, cx)` с `.placeholder()`, `.default_value()`
+- Select: `SelectState::new(labels, Some(IndexPath::...), window, cx)`
+- Подписки на события: `cx.subscribe_in(&entity, window, handler)` → пушить в `_subscriptions`
+
+## GPUI: async
+
+HTTP не блокирует UI. Паттерн из `send_request`:
+
+```rust
+// ✅ GOOD — клонировать данные до spawn, обновить через this.update
+cx.spawn(async move |this, cx| {
+    let result = tokio::runtime::Runtime::new()
+        .expect("tokio runtime")
+        .block_on(send_http_request(/* cloned args */));
+
+    this.update(cx, |app, cx| {
+        app.finish_request(tab_id, result);
+        cx.notify();
+    })
+    .ok();
+})
+.detach();
+```
+
+```rust
+// ❌ BAD — блокировать UI-поток или вызывать send_http_request синхронно в Render
+```
+
+## GPUI: рендер
+
+- `impl Render for ApiHelperApp` — в `app/ui.rs`, единственная точка разметки главного окна
+- Новые `render_*` методы и layout → `app/ui.rs`, не в `app/mod.rs`
+- Использовать `h_flex`, `v_flex`, `h_resizable`, `v_resizable` из `gpui_component`
+- `cx.notify()` после изменения состояния, видимого в UI
+
+## Вкладки
+
+- Состояние запроса живёт в `Tab` (`tabs.rs`)
+- При смене вкладки: `reload_active_tab_inputs` / `capture_editor_state`
+- `tab.loading` — guard от повторной отправки
+
+## Зависимости
+
+- Не добавлять crates в `Cargo.toml` без необходимости
+- `reqwest`: только `rustls-tls`, `multipart`; default-features = false

@@ -1,0 +1,53 @@
+---
+description: HTTP-слой и типы полей форм
+globs: src/http.rs,src/forms.rs
+alwaysApply: false
+---
+
+# HTTP-слой
+
+## Публичный API (`http.rs`)
+
+- `build_url_with_params(base_url, params)` — парсинг URL, query через `reqwest::Url`
+- `send_http_request(...)` — единственная точка отправки запроса
+- `HttpResponse` — status, status_text, headers, body, elapsed_ms
+- `detect_response_syntax(body)` — `"json"` | `"xml"` | `None` для подсветки ответа
+
+## Ошибки
+
+- Возвращать `Result<_, String>` с понятным сообщением для UI
+- Пустой URL → `"URL is empty"`
+- Пустые form/multipart → явная ошибка, не молчаливый skip
+
+## Тела запросов
+
+| BodyType | Поведение |
+|----------|-----------|
+| `None` | без тела |
+| `Json` / `Xml` | `Content-Type` + raw body; пустое тело — skip |
+| `FormUrlEncoded` | `request.form(&pairs)`; только enabled поля с непустым name |
+| `Multipart` | text/file parts; file читается с диска по path в `value` |
+
+## reqwest
+
+```rust
+// ✅ Текущая конфигурация клиента
+reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(30))
+    .build()
+```
+
+- TLS: `rustls-tls` (из `Cargo.toml`)
+- Ответ: `response.text()`, заголовки → `Vec<KeyValueField>`
+- JSON-ответ prettify: `serde_json::to_string_pretty` если body валидный JSON
+
+## Типы полей (`forms.rs`)
+
+- `KeyValueField` = type alias для `FormField` (enabled, name, value)
+- `MultipartField`: + `field_type` (Text/File), `content_type`
+- Дефолты для пустых таблиц: `default_key_value_fields()`, `default_form_fields()`, `default_multipart_fields()`
+
+## Расширение
+
+- Новый тип тела → сначала `BodyType` в `models.rs`, затем ветка в `apply_body`
+- Новая логика заголовков/кодирования → приватные функции в `http.rs`, не в `app.rs`
