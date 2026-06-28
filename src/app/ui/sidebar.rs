@@ -168,11 +168,26 @@ impl ApiHelperApp {
                             .child(Select::new(&self.workspace_select)),
                     )
                     .child(
-                        div()
+                        h_flex()
                             .flex_shrink_0()
-                            .text_sm()
-                            .font_semibold()
-                            .child("Collections"),
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_semibold()
+                                    .child("Collections"),
+                            )
+                            .child(
+                                Button::new("add-collection")
+                                    .ghost()
+                                    .xsmall()
+                                    .icon(IconName::Plus)
+                                    .tooltip("New collection")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.add_collection(window, cx);
+                                    })),
+                            ),
                     )
                     .child(
                         tree(&self.collections_tree, {
@@ -264,6 +279,23 @@ impl ApiHelperApp {
                                                                 );
                                                             },
                                                         )),
+                                                )
+                                                .child(
+                                                    Button::new(("delete-collection", collection_index))
+                                                        .ghost()
+                                                        .xsmall()
+                                                        .icon(IconName::Delete)
+                                                        .tooltip("Delete collection")
+                                                        .on_click(cx.listener(
+                                                            move |this, _, window, cx| {
+                                                                cx.stop_propagation();
+                                                                this.delete_collection(
+                                                                    collection_index,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        )),
                                                 ),
                                         )
                                         .into_any_element()
@@ -280,24 +312,48 @@ impl ApiHelperApp {
                                                 .child(item.label.clone()),
                                         )
                                         .child(
-                                            Button::new(format!(
-                                                "add-request-folder:{collection_index}:{folder_index}"
-                                            ))
-                                                .ghost()
-                                                .xsmall()
-                                                .icon(IconName::Plus)
-                                                .tooltip("New request")
-                                                .on_click(cx.listener(
-                                                    move |this, _, window, cx| {
-                                                        cx.stop_propagation();
-                                                        this.add_request_to_collection(
-                                                            collection_index,
-                                                            Some(folder_index),
-                                                            window,
-                                                            cx,
-                                                        );
-                                                    },
-                                                )),
+                                            h_flex()
+                                                .gap_0p5()
+                                                .child(
+                                                    Button::new(format!(
+                                                        "add-request-folder:{collection_index}:{folder_index}"
+                                                    ))
+                                                        .ghost()
+                                                        .xsmall()
+                                                        .icon(IconName::Plus)
+                                                        .tooltip("New request")
+                                                        .on_click(cx.listener(
+                                                            move |this, _, window, cx| {
+                                                                cx.stop_propagation();
+                                                                this.add_request_to_collection(
+                                                                    collection_index,
+                                                                    Some(folder_index),
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        )),
+                                                )
+                                                .child(
+                                                    Button::new(format!(
+                                                        "delete-folder:{collection_index}:{folder_index}"
+                                                    ))
+                                                        .ghost()
+                                                        .xsmall()
+                                                        .icon(IconName::Delete)
+                                                        .tooltip("Delete folder")
+                                                        .on_click(cx.listener(
+                                                            move |this, _, window, cx| {
+                                                                cx.stop_propagation();
+                                                                this.delete_folder_from_collection(
+                                                                    collection_index,
+                                                                    folder_index,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        )),
+                                                ),
                                         )
                                         .into_any_element()
                                 } else if let Some(location) = request_location {
@@ -399,6 +455,7 @@ impl ApiHelperApp {
                                     let view_for_folder = view.clone();
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
+                                    let view_for_delete = view.clone();
                                     return menu
                                         .item(
                                             PopupMenuItem::new("Rename")
@@ -457,6 +514,19 @@ impl ApiHelperApp {
                                                         );
                                                     });
                                                 }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Delete")
+                                                .icon(IconName::Delete)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_delete.update(cx, |this, cx| {
+                                                        this.delete_collection(
+                                                            collection_index,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
                                         );
                                 }
 
@@ -466,6 +536,7 @@ impl ApiHelperApp {
                                     let view_for_rename = view.clone();
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
+                                    let view_for_delete = view.clone();
                                     return menu
                                         .item(
                                             PopupMenuItem::new("Rename")
@@ -507,6 +578,20 @@ impl ApiHelperApp {
                                                                 collection: collection_index,
                                                                 folder: Some(folder_index),
                                                             },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Delete")
+                                                .icon(IconName::Delete)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_delete.update(cx, |this, cx| {
+                                                        this.delete_folder_from_collection(
+                                                            collection_index,
+                                                            folder_index,
                                                             window,
                                                             cx,
                                                         );

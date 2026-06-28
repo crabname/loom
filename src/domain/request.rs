@@ -143,6 +143,17 @@ pub struct Collection {
 }
 
 impl Collection {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            expanded: true,
+            variables: default_variables(),
+            environments: Vec::new(),
+            folders: Vec::new(),
+            requests: Vec::new(),
+        }
+    }
+
     pub fn request_ref(&self, folder: Option<usize>, index: usize) -> Option<&Request> {
         match folder {
             None => self.requests.get(index),
@@ -189,6 +200,10 @@ impl Collection {
                 self.folders[folder_index].requests.remove(index);
             }
         }
+    }
+
+    pub fn remove_folder(&mut self, index: usize) {
+        self.folders.remove(index);
     }
 
     pub fn first_request_location(&self) -> Option<(Option<usize>, usize)> {

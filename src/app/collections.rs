@@ -1,7 +1,8 @@
 use gpui::*;
 use gpui_component::tree::{TreeEvent, TreeItem};
 
-use crate::domain::{Collection, CollectionFolder, Request};
+use crate::domain::{Collection, CollectionFolder, EnvironmentRef, EnvironmentScope, Request};
+use crate::storage::{remove_collection_dir, remove_folder_dir};
 
 use super::ui::{
     build_collection_tree_items, parse_collection_tree_id, parse_folder_tree_id, request_tree_id,
@@ -107,6 +108,100 @@ impl ApiHelperApp {
         self.schedule_autosave(cx);
     }
 
+    pub(super) fn add_collection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let number = self.active_collections().len() + 1;
+        let name = if number == 1 {
+            "New Collection".into()
+        } else {
+            format!("New Collection {number}")
+        };
+
+        self.active_collections_mut().push(Collection::new(name));
+        self.workspace_collection_paths[self.active_workspace].push(String::new());
+
+        self.refresh_collections_tree(cx);
+        self.refresh_environment_select(window, cx);
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
+    pub(super) fn delete_collection(
+        &mut self,
+        collection: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.active_collections().get(collection).is_none() {
+            return;
+        }
+
+        self.flush_field_inputs(cx);
+        self.capture_editor_state(cx);
+        self.sync_active_tab_to_collection(cx);
+
+        let collection_path = self
+            .workspace_collection_paths
+            .get(self.active_workspace)
+            .and_then(|paths| paths.get(collection))
+            .cloned();
+        let active_tab_id = self.tabs.get(self.active_tab).map(|tab| tab.id);
+
+        if let Some(EnvironmentRef { scope, index }) = self.active_environment {
+            if let EnvironmentScope::Collection(collection_index) = scope {
+                if collection_index == collection {
+                    self.active_environment = None;
+                } else if collection_index > collection {
+                    self.active_environment = Some(EnvironmentRef {
+                        scope: EnvironmentScope::Collection(collection_index - 1),
+                        index,
+                    });
+                }
+            }
+        }
+
+        self.tabs.retain(|tab| {
+            tab.source.is_none_or(|source| {
+                source.workspace != self.active_workspace || source.collection != collection
+            })
+        });
+
+        for tab in &mut self.tabs {
+            if let Some(source) = &mut tab.source
+                && source.workspace == self.active_workspace
+                && source.collection > collection
+            {
+                source.collection -= 1;
+            }
+        }
+
+        self.active_collections_mut().remove(collection);
+        self.workspace_collection_paths[self.active_workspace].remove(collection);
+
+        if let (Some(workspace_path), Some(collection_path)) = (
+            self.workspace_bindings[self.active_workspace].local_path(),
+            collection_path.as_deref(),
+        ) {
+            let _ = remove_collection_dir(workspace_path, collection_path);
+        }
+
+        self.ensure_open_tab(window, cx);
+
+        if let Some(active_tab_id) = active_tab_id {
+            self.active_tab = self
+                .tabs
+                .iter()
+                .position(|tab| tab.id == active_tab_id)
+                .unwrap_or_else(|| self.tabs.len().saturating_sub(1));
+        }
+
+        self.refresh_collections_tree(cx);
+        self.reload_active_tab_inputs(window, cx);
+        self.sync_collections_tree_selection(cx);
+        self.refresh_environment_select(window, cx);
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
     pub(super) fn add_folder_to_collection(
         &mut self,
         collection: usize,
@@ -209,6 +304,80 @@ impl ApiHelperApp {
         }
 
         self.active_collections_mut()[collection].remove_request(folder, request);
+        self.ensure_open_tab(window, cx);
+
+        if let Some(active_tab_id) = active_tab_id {
+            self.active_tab = self
+                .tabs
+                .iter()
+                .position(|tab| tab.id == active_tab_id)
+                .unwrap_or_else(|| self.tabs.len().saturating_sub(1));
+        }
+
+        self.refresh_collections_tree(cx);
+        self.reload_active_tab_inputs(window, cx);
+        self.sync_collections_tree_selection(cx);
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
+    pub(super) fn delete_folder_from_collection(
+        &mut self,
+        collection: usize,
+        folder: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .active_collections()
+            .get(collection)
+            .is_none_or(|collection_data| collection_data.folders.get(folder).is_none())
+        {
+            return;
+        }
+
+        self.flush_field_inputs(cx);
+        self.capture_editor_state(cx);
+        self.sync_active_tab_to_collection(cx);
+
+        let collection_path = self
+            .workspace_collection_paths
+            .get(self.active_workspace)
+            .and_then(|paths| paths.get(collection))
+            .cloned();
+        let folder_name = self.active_collections()[collection].folders[folder].name.clone();
+        let active_tab_id = self.tabs.get(self.active_tab).map(|tab| tab.id);
+
+        self.tabs.retain(|tab| {
+            tab.source.is_none_or(|source| {
+                source.workspace != self.active_workspace
+                    || source.collection != collection
+                    || source.folder != Some(folder)
+            })
+        });
+
+        for tab in &mut self.tabs {
+            if let Some(source) = &mut tab.source
+                && source.workspace == self.active_workspace
+                && source.collection == collection
+            {
+                if let Some(folder_index) = source.folder
+                    && folder_index > folder
+                {
+                    source.folder = Some(folder_index - 1);
+                }
+            }
+        }
+
+        self.active_collections_mut()[collection].remove_folder(folder);
+
+        if let (Some(workspace_path), Some(collection_path)) = (
+            self.workspace_bindings[self.active_workspace].local_path(),
+            collection_path.as_deref(),
+        ) {
+            let _ = remove_folder_dir(workspace_path, collection_path, &folder_name);
+        }
+
         self.ensure_open_tab(window, cx);
 
         if let Some(active_tab_id) = active_tab_id {

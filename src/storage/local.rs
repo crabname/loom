@@ -134,12 +134,14 @@ fn save_environments(path: &Path, environments: &[Environment]) -> Result<(), St
     fs::create_dir_all(path).map_err(|error| error.to_string())?;
 
     let mut used = HashSet::new();
+    let mut keep = HashSet::new();
     for environment in environments {
         let file_name = format!("{}.yml", unique_slug(&slugify(&environment.name), &mut used));
-        write_yaml(&path.join(file_name), &EnvironmentFile::from(environment))?;
+        write_yaml(&path.join(&file_name), &EnvironmentFile::from(environment))?;
+        keep.insert(file_name);
     }
 
-    Ok(())
+    prune_stale_yaml_files(path, &keep)
 }
 
 fn save_collection(path: &Path, collection: &Collection) -> Result<(), String> {
@@ -149,16 +151,18 @@ fn save_collection(path: &Path, collection: &Collection) -> Result<(), String> {
     save_environments(&path.join(ENVIRONMENTS_DIR), &collection.environments)?;
 
     let mut used = HashSet::new();
+    let mut keep = HashSet::from([COLLECTION_FILE.to_string()]);
     for request in &collection.requests {
         let file_name = format!("{}.yml", unique_slug(&slugify(&request.name), &mut used));
-        save_request(&path.join(file_name), request)?;
+        save_request(&path.join(&file_name), request)?;
+        keep.insert(file_name);
     }
 
     for folder in &collection.folders {
         save_folder(path, folder)?;
     }
 
-    Ok(())
+    prune_stale_yaml_files(path, &keep)
 }
 
 fn save_folder(collection_path: &Path, folder: &CollectionFolder) -> Result<(), String> {
@@ -167,16 +171,45 @@ fn save_folder(collection_path: &Path, folder: &CollectionFolder) -> Result<(), 
     write_yaml(&folder_path.join(FOLDER_FILE), &FolderFile::from(folder))?;
 
     let mut used = HashSet::new();
+    let mut keep = HashSet::from([FOLDER_FILE.to_string()]);
     for request in &folder.requests {
         let file_name = format!("{}.yml", unique_slug(&slugify(&request.name), &mut used));
-        save_request(&folder_path.join(file_name), request)?;
+        save_request(&folder_path.join(&file_name), request)?;
+        keep.insert(file_name);
     }
 
-    Ok(())
+    prune_stale_yaml_files(&folder_path, &keep)
 }
 
 fn save_request(path: &Path, request: &Request) -> Result<(), String> {
     write_yaml(path, &RequestFile::from(request))
+}
+
+fn prune_stale_yaml_files(dir: &Path, keep: &HashSet<String>) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if !entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_file()
+        {
+            continue;
+        }
+
+        let file_name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        if file_name.ends_with(".yml") && !keep.contains(&file_name) {
+            fs::remove_file(entry.path()).map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(())
 }
 
 fn discover_collections(workspace_path: &Path) -> Result<Vec<CollectionRef>, String> {
@@ -368,6 +401,26 @@ fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
 
     used.insert(slug.clone());
     slug
+}
+
+pub fn remove_collection_dir(workspace_path: &Path, collection_path: &str) -> Result<(), String> {
+    let path = workspace_path.join(collection_path);
+    if path.is_dir() {
+        fs::remove_dir_all(&path).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+pub fn remove_folder_dir(
+    workspace_path: &Path,
+    collection_path: &str,
+    folder_name: &str,
+) -> Result<(), String> {
+    let path = workspace_path.join(collection_path).join(slugify(folder_name));
+    if path.is_dir() {
+        fs::remove_dir_all(&path).map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 pub fn default_collection_paths(workspace: &Workspace) -> Vec<String> {
