@@ -35,6 +35,7 @@ impl Render for LoomApp {
             .flex_col()
             .key_context("LoomApp")
             .on_action(cx.listener(Self::on_open_workspace))
+            .on_action(cx.listener(Self::on_import_collection))
             .on_action(cx.listener(Self::on_open_settings))
             .child(
                 TitleBar::new()

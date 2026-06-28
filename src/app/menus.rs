@@ -1,13 +1,14 @@
 use gpui::{actions, App, Menu, MenuItem};
 use gpui_component::{menu::AppMenuBar, GlobalState};
 
-actions!(loom, [OpenWorkspace, OpenSettings]);
+actions!(loom, [OpenWorkspace, OpenSettings, ImportCollection]);
 
 pub fn register_app_menus(cx: &mut App) {
     cx.set_menus(vec![Menu {
         name: "File".into(),
         items: vec![
             MenuItem::action("Open Workspace...", OpenWorkspace),
+            MenuItem::action("Import Collection...", ImportCollection),
             MenuItem::separator(),
             MenuItem::action("Settings...", OpenSettings),
         ],
@@ -18,6 +19,7 @@ pub fn register_app_menus(cx: &mut App) {
         name: "File".into(),
         items: vec![
             MenuItem::action("Open Workspace...", OpenWorkspace),
+            MenuItem::action("Import Collection...", ImportCollection),
             MenuItem::separator(),
             MenuItem::action("Settings...", OpenSettings),
         ],

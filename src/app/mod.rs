@@ -1,5 +1,6 @@
 mod app_state;
 mod autosave;
+mod collection_import;
 mod collections;
 mod dispatch;
 mod editor;
@@ -34,7 +35,7 @@ use workspace_binding::WorkspaceBinding;
 
 use ui::{MultipartRowInputs, RowInputs};
 
-pub use menus::{OpenSettings, OpenWorkspace};
+pub use menus::{ImportCollection, OpenSettings, OpenWorkspace};
 
 pub struct LoomApp {
     pub(super) app_paths: AppPaths,

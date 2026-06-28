@@ -11,6 +11,7 @@ use gpui_component::{
 };
 
 use crate::domain::{Collection, HttpMethod, RequestProtocol};
+use crate::import::ExportTarget;
 use crate::app::tab::TabSource;
 
 use super::LoomApp;
@@ -208,14 +209,28 @@ impl LoomApp {
                                     .child("Collections"),
                             )
                             .child(
-                                Button::new("add-collection")
-                                    .ghost()
-                                    .xsmall()
-                                    .icon(IconName::Plus)
-                                    .tooltip("New collection")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.add_collection(window, cx);
-                                    })),
+                                h_flex()
+                                    .gap_1()
+                                    .child(
+                                        Button::new("import-collection")
+                                            .ghost()
+                                            .xsmall()
+                                            .icon(IconName::ArrowDown)
+                                            .tooltip("Import collection")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.prompt_import_collection(window, cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("add-collection")
+                                            .ghost()
+                                            .xsmall()
+                                            .icon(IconName::Plus)
+                                            .tooltip("New collection")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.add_collection(window, cx);
+                                            })),
+                                    ),
                             ),
                     )
                     .child(
@@ -485,6 +500,8 @@ impl LoomApp {
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
                                     let view_for_variables = view.clone();
+                                    let view_for_export_oc = view.clone();
+                                    let view_for_export_postman = view.clone();
                                     let view_for_delete = view.clone();
                                     return menu
                                         .item(
@@ -552,6 +569,34 @@ impl LoomApp {
                                                                 collection: collection_index,
                                                                 folder: None,
                                                             },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Export OpenCollection...")
+                                                .icon(IconName::ArrowUp)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_export_oc.update(cx, |this, cx| {
+                                                        this.prompt_export_collection(
+                                                            collection_index,
+                                                            ExportTarget::OpenCollectionFolder,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Export Postman...")
+                                                .icon(IconName::ArrowUp)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_export_postman.update(cx, |this, cx| {
+                                                        this.prompt_export_collection(
+                                                            collection_index,
+                                                            ExportTarget::PostmanFile,
                                                             window,
                                                             cx,
                                                         );
