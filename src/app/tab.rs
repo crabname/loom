@@ -4,10 +4,13 @@ use crate::domain::{
     RequestTimingBreakdown, ResponseBody, ResponseBodyView, Variable,
 };
 
+use crate::scripting::ScriptConsoleEntry;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResponsePanelTab {
     Body,
     Headers,
+    Console,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +64,7 @@ pub struct Tab {
     pub response_timing: Option<RequestTimingBreakdown>,
     pub response_size_bytes: Option<usize>,
     pub response_error: Option<String>,
+    pub script_console: Vec<ScriptConsoleEntry>,
     pub loading: bool,
 }
 
@@ -93,6 +97,7 @@ impl Tab {
             response_timing: None,
             response_size_bytes: None,
             response_error: None,
+            script_console: Vec::new(),
             loading: false,
         }
     }
@@ -125,6 +130,7 @@ impl Tab {
             response_timing: None,
             response_size_bytes: None,
             response_error: None,
+            script_console: Vec::new(),
             loading: false,
         }
     }

@@ -9,36 +9,43 @@ alwaysApply: false
 ## Стиль
 
 - Следовать существующим конвенциям файла, в котором редактируешь
-- `mod` объявляются в `main.rs`; новый модуль → добавить `mod` и файл в `src/`
-- Предпочитать явные типы ошибок в HTTP-слое (`Result<_, String>`), не менять на `anyhow` без запроса
+- Корневые `mod` — в `main.rs` (`app`, `domain`, `scripting`, `storage`, `transport`); подмодули — в `mod.rs` соответствующего каталога
+- Новый файл → добавить `mod` в родительский `mod.rs`
+- Предпочитать явные типы ошибок в HTTP/storage (`Result<_, String>`), не менять на `anyhow` без запроса
+- Логику `ApiHelperApp` раскладывать по feature-файлам (`dispatch.rs`, `collections.rs`, `workspace.rs`, …), не раздувать `mod.rs`
 
 ## GPUI: состояние и UI
 
-- Корневой view: `ApiHelperApp` (`Entity<Self>`)
-- Создание entity: `cx.new(|cx| ...)` в `open()` / `new()`
+- Корневой view: `ApiHelperApp` (`Entity<Self>`) — struct в `src/app/mod.rs`
+- Создание entity: `ApiHelperApp::open()` → `cx.new(|cx| Self::new(...))` в `src/app/init.rs`
 - Input: `InputState::new(window, cx)` с `.placeholder()`, `.default_value()`
 - Select: `SelectState::new(labels, Some(IndexPath::...), window, cx)`
 - Подписки на события: `cx.subscribe_in(&entity, window, handler)` → пушить в `_subscriptions`
+- Доступ к полям struct из соседних файлов: `pub(super)`
 
 ## GPUI: async
 
-HTTP не блокирует UI. Паттерн из `send_request`:
+HTTP не блокирует UI. Паттерн из `src/app/dispatch.rs`:
 
 ```rust
-// ✅ GOOD — клонировать данные до spawn, обновить через this.update
-cx.spawn(async move |this, cx| {
-    let result = tokio::runtime::Runtime::new()
-        .expect("tokio runtime")
-        .block_on(send_http_request(/* cloned args */));
+// ✅ GOOD — клонировать данные до spawn, HTTP через block_on, обновить через this.update
+cx.spawn_in(window, async move |this, cx| {
+    let result = block_on(send_http_request(/* cloned args */));
 
-    this.update(cx, |app, cx| {
-        app.finish_request(tab_id, result);
-        cx.notify();
+    cx.update(|window, app| {
+        this.update(app, |app, cx| {
+            app.finish_request(tab_id, result, /* ... */, window, cx);
+            cx.notify();
+        })
+        .ok();
     })
     .ok();
 })
 .detach();
 ```
+
+- `block_on` — из `crate::transport` (`transport/runtime.rs`, общий `OnceLock<Runtime>`)
+- `send_http_request` — из `crate::transport::http`
 
 ```rust
 // ❌ BAD — блокировать UI-поток или вызывать send_http_request синхронно в Render
@@ -46,18 +53,19 @@ cx.spawn(async move |this, cx| {
 
 ## GPUI: рендер
 
-- `impl Render for ApiHelperApp` — в `app/ui.rs`, единственная точка разметки главного окна
-- Новые `render_*` методы и layout → `app/ui.rs`, не в `app/mod.rs`
+- `impl Render for ApiHelperApp` — в `src/app/ui/mod.rs`, единственная точка разметки главного окна
+- Новые `render_*` методы и layout → `src/app/ui/*.rs`, не в `src/app/mod.rs`
 - Использовать `h_flex`, `v_flex`, `h_resizable`, `v_resizable` из `gpui_component`
 - `cx.notify()` после изменения состояния, видимого в UI
 
 ## Вкладки
 
-- Состояние запроса живёт в `Tab` (`tabs.rs`)
-- При смене вкладки: `reload_active_tab_inputs` / `capture_editor_state`
+- Состояние запроса живёт в `Tab` (`src/app/tab.rs`)
+- При смене вкладки: `reload_active_tab_inputs` / `capture_editor_state` (`src/app/editor.rs`)
 - `tab.loading` — guard от повторной отправки
+- Синхронизация с коллекцией: `sync_active_tab_to_collection` (`src/app/collections.rs`)
 
 ## Зависимости
 
 - Не добавлять crates в `Cargo.toml` без необходимости
-- `reqwest`: только `rustls-tls`, `multipart`; default-features = false
+- `reqwest`: только `rustls-tls`, `multipart`, `stream`; default-features = false

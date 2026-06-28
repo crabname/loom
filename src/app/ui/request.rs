@@ -203,8 +203,8 @@ impl ApiHelperApp {
                     .text_xs()
                     .text_color(cx.theme().muted_foreground)
                     .child(
-                        "Use host.getVar / host.setVar for runtime variables and \
-                         host.getEnvVar / host.setEnvVar for the active environment.",
+                        "Pre-request: host.* variables. Post-response: res (status, body, headers) \
+                         and console.log / warn / error — output appears in Response → Console.",
                     ),
             )
             .child(div().flex_1().min_h_0().child(editor.h_full()))

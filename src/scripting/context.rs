@@ -48,10 +48,37 @@ impl ScriptHostHandle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptConsoleLevel {
+    Log,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl ScriptConsoleLevel {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Log => "log",
+            Self::Debug => "debug",
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptConsoleEntry {
+    pub level: ScriptConsoleLevel,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
 pub struct ConsoleLogStore {
     #[unsafe_ignore_trace]
-    pub logs: Rc<RefCell<Vec<String>>>,
+    pub logs: Rc<RefCell<Vec<ScriptConsoleEntry>>>,
 }
 
 impl Default for ConsoleLogStore {
@@ -68,11 +95,11 @@ pub struct ScriptResult {
     pub env_vars: HashMap<String, Value>,
     pub runtime_dirty: bool,
     pub env_dirty: bool,
-    pub console_logs: Vec<String>,
+    pub console_logs: Vec<ScriptConsoleEntry>,
 }
 
 impl ScriptResult {
-    pub fn from_handle(handle: &ScriptHostHandle, console_logs: Vec<String>) -> Self {
+    pub fn from_handle(handle: &ScriptHostHandle, console_logs: Vec<ScriptConsoleEntry>) -> Self {
         let state = handle.inner.borrow();
         Self {
             runtime_vars: state.runtime_vars.clone(),

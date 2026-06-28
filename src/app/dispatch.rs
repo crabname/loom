@@ -8,7 +8,7 @@ use crate::domain::{
 };
 use crate::scripting::{
     map_to_variables, merge_runtime_vars, run_post_response_script, run_pre_request_script,
-    variables_to_map, ScriptHostState, ScriptResult,
+    variables_to_map, ScriptConsoleEntry, ScriptHostState, ScriptResult,
 };
 use crate::transport::{block_on, send_http_request, HttpRequestBody, HttpRequestResult};
 
@@ -87,6 +87,23 @@ impl ApiHelperApp {
                 *variables = map_to_variables(&result.env_vars);
             }
         }
+    }
+
+    fn append_script_console(&mut self, tab_id: usize, logs: &[ScriptConsoleEntry]) {
+        if logs.is_empty() {
+            return;
+        }
+
+        let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) else {
+            return;
+        };
+
+        tab.script_console.extend_from_slice(logs);
+    }
+
+    fn apply_script_result_for_tab(&mut self, tab_id: usize, result: &ScriptResult) {
+        self.apply_script_result(result);
+        self.append_script_console(tab_id, &result.console_logs);
     }
 
     fn variable_pool_for_source(
@@ -188,6 +205,7 @@ impl ApiHelperApp {
             tab.response_body = ResponseBody::empty();
             tab.response_body_view = ResponseBodyView::Raw;
             tab.response_headers.clear();
+            tab.script_console.clear();
         }
         self.sync_active_tab_to_collection(cx);
         self.reload_response_body_input(window, cx);
@@ -205,7 +223,7 @@ impl ApiHelperApp {
             let script_started = std::time::Instant::now();
             let host_state = self.build_script_host_state();
             match run_pre_request_script(&pre_request_script, host_state) {
-                Ok(result) => self.apply_script_result(&result),
+                Ok(result) => self.apply_script_result_for_tab(tab_id, &result),
                 Err(error) => {
                     timing.pre_request_script_ms = script_started.elapsed().as_millis();
                     self.fail_request_with_script_error(
@@ -236,6 +254,8 @@ impl ApiHelperApp {
         let form_fields = resolved.form_fields;
         let multipart_fields = resolved.multipart_fields;
 
+        let request_url = url.clone();
+
         cx.spawn_in(window, async move |this, cx| {
             let result = block_on(send_http_request(
                 url,
@@ -256,6 +276,7 @@ impl ApiHelperApp {
                         tab_id,
                         result,
                         post_response_script,
+                        request_url,
                         timing,
                         window,
                         cx,
@@ -276,6 +297,7 @@ impl ApiHelperApp {
         tab_id: usize,
         result: HttpRequestResult,
         post_response_script: String,
+        request_url: String,
         mut timing: RequestTimingBreakdown,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -316,8 +338,13 @@ impl ApiHelperApp {
             if let Some(response) = response_for_script {
                 let script_started = std::time::Instant::now();
                 let host_state = self.build_script_host_state();
-                match run_post_response_script(&post_response_script, host_state, &response) {
-                    Ok(script_result) => self.apply_script_result(&script_result),
+                match run_post_response_script(
+                    &post_response_script,
+                    host_state,
+                    &response,
+                    request_url,
+                ) {
+                    Ok(script_result) => self.apply_script_result_for_tab(tab_id, &script_result),
                     Err(error) => {
                         self.tabs[tab_index].response_error =
                             Some(format!("Post-response script error: {error}"));

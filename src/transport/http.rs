@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::domain::{
     build_url_with_params, classify_response_body, format_response_size, response_content_type,
     BodyType, FormField, HttpMethod, HttpTiming, KeyValueField, MultipartField, MultipartFieldType,
@@ -6,6 +8,22 @@ use crate::domain::{
 
 /// Maximum response body size kept in memory (10 MiB).
 const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
+
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("failed to build HTTP client")
+    })
+}
 
 #[derive(Debug, Clone)]
 pub struct HttpRequestBody {
@@ -36,24 +54,7 @@ pub async fn send_http_request(
         }
     };
 
-    let client = match reqwest::Client::builder()
-        .user_agent(concat!(
-            env!("CARGO_PKG_NAME"),
-            "/",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-    {
-        Ok(client) => client,
-        Err(error) => {
-            timing.prepare_request_ms = prepare_started.elapsed().as_millis();
-            return HttpRequestResult {
-                timing,
-                response: Err(error.to_string()),
-            };
-        }
-    };
+    let client = http_client();
 
     let request = match method {
         HttpMethod::Get => client.get(&url),

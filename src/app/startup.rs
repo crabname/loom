@@ -69,7 +69,7 @@ pub fn load_startup_workspaces(app_paths: &AppPaths) -> StartupWorkspaces {
 }
 
 fn demo_startup() -> StartupWorkspaces {
-    let workspaces = crate::domain::demo_workspaces();
+    let workspaces = crate::demo::demo_workspaces();
     let workspace_count = workspaces.len();
 
     StartupWorkspaces {

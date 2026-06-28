@@ -143,8 +143,9 @@ impl ApiHelperApp {
         let tree_view = view.clone();
 
         div()
-            .w(px(260.))
+            .w_full()
             .h_full()
+            .min_w_0()
             .bg(cx.theme().sidebar)
             .border_r_1()
             .border_color(cx.theme().border)

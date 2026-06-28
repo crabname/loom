@@ -14,8 +14,64 @@ use crate::domain::{
     format_binary_body_message, format_response_size, is_html_content, response_content_type,
     KeyValueField, RequestTimingBreakdown, ResponseBody, ResponseBodyView,
 };
+use crate::scripting::{ScriptConsoleEntry, ScriptConsoleLevel};
 
 use super::ApiHelperApp;
+
+fn console_level_color(level: ScriptConsoleLevel, cx: &App) -> Hsla {
+    match level {
+        ScriptConsoleLevel::Error => cx.theme().red,
+        ScriptConsoleLevel::Warn => cx.theme().yellow,
+        ScriptConsoleLevel::Info => cx.theme().blue,
+        ScriptConsoleLevel::Debug => cx.theme().muted_foreground,
+        ScriptConsoleLevel::Log => cx.theme().foreground,
+    }
+}
+
+fn render_script_console(entries: &[ScriptConsoleEntry], cx: &App) -> AnyElement {
+    if entries.is_empty() {
+        return div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_color(cx.theme().muted_foreground)
+            .child("Script console output will appear here after running pre/post scripts")
+            .into_any_element();
+    }
+
+    let mut list = v_flex().gap_1();
+    for entry in entries {
+        list = list.child(
+            h_flex()
+                .gap_2()
+                .px_2()
+                .py_1()
+                .rounded(px(4.))
+                .hover(|style| style.bg(cx.theme().muted))
+                .child(
+                    div()
+                        .w(px(44.))
+                        .text_xs()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(console_level_color(entry.level, cx))
+                        .child(entry.level.label()),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_sm()
+                        .child(entry.message.clone()),
+                ),
+        );
+    }
+
+    v_flex()
+        .size_full()
+        .min_h_0()
+        .child(list.flex_1().overflow_y_scrollbar())
+        .into_any_element()
+}
 
 struct ResponseStatusInfo<'a> {
     loading: bool,
@@ -358,6 +414,7 @@ impl ApiHelperApp {
             error,
             body,
             headers,
+            script_console,
         ) = self
             .active_tab()
             .map(|tab| {
@@ -373,6 +430,7 @@ impl ApiHelperApp {
                     tab.response_error.clone(),
                     tab.response_body.clone(),
                     tab.response_headers.clone(),
+                    tab.script_console.clone(),
                 )
             })
             .unwrap_or((
@@ -386,6 +444,7 @@ impl ApiHelperApp {
                 None,
                 None,
                 ResponseBody::empty(),
+                Vec::new(),
                 Vec::new(),
             ));
 
@@ -409,6 +468,7 @@ impl ApiHelperApp {
                 self.render_response_body(&body, &headers, body_view, cx)
             }
             ResponsePanelTab::Headers => self.render_response_headers(&headers, cx),
+            ResponsePanelTab::Console => render_script_console(&script_console, cx),
         };
 
         let mut panel = v_flex()
@@ -433,19 +493,21 @@ impl ApiHelperApp {
                     .selected_index(match panel_tab {
                         ResponsePanelTab::Body => 0,
                         ResponsePanelTab::Headers => 1,
+                        ResponsePanelTab::Console => 2,
                     })
                     .on_click(cx.listener(|this, index: &usize, _, cx| {
                         if let Some(tab) = this.active_tab_mut() {
-                            tab.response_panel_tab = if *index == 0 {
-                                ResponsePanelTab::Body
-                            } else {
-                                ResponsePanelTab::Headers
+                            tab.response_panel_tab = match *index {
+                                0 => ResponsePanelTab::Body,
+                                1 => ResponsePanelTab::Headers,
+                                _ => ResponsePanelTab::Console,
                             };
                             cx.notify();
                         }
                     }))
                     .child("Body")
-                    .child("Headers"),
+                    .child("Headers")
+                    .child("Console"),
             );
 
         if panel_tab == ResponsePanelTab::Body && html_preview_available {

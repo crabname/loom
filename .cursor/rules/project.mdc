@@ -18,12 +18,38 @@ Desktop HTTP-клиент на Rust + GPUI. Архитектурный план 
 
 ## Размещение кода
 
-- Состояние, вкладки, HTTP-отправка → `src/app/mod.rs`
-- UI, layout, рендер → `src/app/ui.rs`
-- Доменные типы, коллекции → `src/models.rs`
-- HTTP, reqwest, тела запросов → `src/http.rs`
-- Типы полей форм → `src/forms.rs`
-- Состояние вкладок → `src/tabs.rs`
+Корневые модули объявляются в `main.rs`: `app`, `demo`, `domain`, `scripting`, `storage`, `transport`.
+
+| Задача | Модуль |
+|--------|--------|
+| Точка входа, инициализация GPUI | `src/main.rs` |
+| `ApiHelperApp`, struct и оркестрация | `src/app/mod.rs` |
+| Отправка запросов, скрипты | `src/app/dispatch.rs` |
+| Вкладки, `Tab`, `TabSource` | `src/app/tab.rs` |
+| Workspace: переключение, binding | `src/app/workspace.rs`, `workspace_binding.rs`, `workspace_storage.rs` |
+| Коллекции, дерево, autosave | `src/app/collections.rs`, `autosave.rs` |
+| Персистентность app state (логика) | `src/app/app_state.rs` |
+| Синхронизация URL ↔ params | `src/app/url_sync.rs` |
+| Таблицы полей (inputs, subscriptions) | `src/app/field_tables.rs`, `editor.rs` |
+| Старт приложения | `src/app/init.rs`, `startup.rs` |
+| Меню | `src/app/menus.rs` |
+| UI, layout, `impl Render` | `src/app/ui/mod.rs` |
+| UI-компоненты | `src/app/ui/*.rs` (sidebar, tab_bar, url_bar, request, response, fields, curl, environment) |
+| Доменные типы: Request, Collection, Workspace | `src/domain/request.rs`, `workspace.rs` |
+| HttpMethod, BodyType, протокол | `src/domain/request.rs` |
+| Поля форм (key-value, multipart) | `src/domain/fields.rs` |
+| Переменные, подстановка | `src/domain/variable.rs` |
+| Окружения | `src/domain/environment.rs` |
+| URL: query params, build URL | `src/domain/url.rs` |
+| Ответ: классификация, форматирование | `src/domain/response.rs` |
+| cURL import/export | `src/domain/curl.rs` |
+| Демо-данные при старте | `src/demo/` |
+| HTTP, reqwest, тела запросов | `src/transport/http.rs` |
+| Tokio runtime (`block_on`) | `src/transport/runtime.rs` |
+| Pre/post-request скрипты (boa) | `src/scripting/` |
+| Персистентность: YAML, paths, app state | `src/storage/` (`local.rs`, `yaml/`, `app_state.rs`, `paths.rs`) |
+
+**Не смешивать:** HTTP-логику в `app/`, UI-разметку в `transport/` или `domain/`. Новый UI → `src/app/ui/`, новая логика состояния → соответствующий файл в `src/app/`.
 
 ## Git
 

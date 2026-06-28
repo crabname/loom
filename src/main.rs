@@ -1,4 +1,5 @@
 mod app;
+mod demo;
 mod domain;
 mod scripting;
 mod storage;

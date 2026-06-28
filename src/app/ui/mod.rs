@@ -47,6 +47,7 @@ impl Render for ApiHelperApp {
                             .child(
                                 resizable_panel()
                                     .size(px(260.))
+                                    .flex_none()
                                     .child(self.render_sidebar(cx)),
                             )
                             .child(
