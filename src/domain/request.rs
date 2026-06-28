@@ -25,6 +25,13 @@ impl RequestProtocol {
             .into_iter()
             .find(|protocol| protocol.label().eq_ignore_ascii_case(label))
     }
+
+    pub fn list_badge(self, http_method: HttpMethod) -> &'static str {
+        match self {
+            Self::Http => http_method.as_str(),
+            Self::Grpc => "gRPC",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+APP_NAME="Loom"
+BUNDLE_ID="dev.loom.app"
+BINARY_NAME="loom"
+BUILD_FLAG="--release"
+TARGET_DIR="release"
+OPEN_RESULT=false
+LOCAL_INSTALL=false
+CREATE_DMG=false
+
+help_info() {
+  cat <<EOF
+Usage: ${0##*/} [options]
+
+Build the macOS application bundle and optionally a release DMG.
+
+Options:
+  -d    Compile in debug mode
+  -D    Create a release DMG (release builds only)
+  -o    Open the resulting DMG or .app when finished
+  -i    Copy the .app bundle into /Applications
+  -h    Display this help and exit
+EOF
+}
+
+while getopts 'dDoih' flag; do
+  case "${flag}" in
+    D) CREATE_DMG=true ;;
+    o) OPEN_RESULT=true ;;
+    d)
+      BUILD_FLAG=""
+      TARGET_DIR="debug"
+      ;;
+    i) LOCAL_INSTALL=true ;;
+    h)
+      help_info
+      exit 0
+      ;;
+    *)
+      help_info
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "error: bundle-mac supports macOS only" >&2
+  exit 1
+fi
+
+if ! command -v hdiutil >/dev/null; then
+  echo "error: hdiutil not found; install Xcode Command Line Tools" >&2
+  exit 1
+fi
+
+export CXXFLAGS="${CXXFLAGS:--stdlib=libc++}"
+
+target_triple="$(rustc -vV | awk '/^host: / { print $2 }')"
+arch_suffix=""
+
+case "$target_triple" in
+  x86_64-apple-darwin) arch_suffix="x86_64" ;;
+  aarch64-apple-darwin) arch_suffix="aarch64" ;;
+  *)
+    echo "error: unsupported target triple: $target_triple" >&2
+    exit 1
+    ;;
+esac
+
+rustup target add "$target_triple" >/dev/null
+
+icon_path="assets/AppIcon.icns"
+if [[ ! -f "$icon_path" ]]; then
+  echo "error: missing ${icon_path}; run 'make icons' first" >&2
+  exit 1
+fi
+
+package_version="$(awk -F'"' '/^version = / { print $2; exit }' Cargo.toml)"
+
+artifact_dir="target/${target_triple}/${TARGET_DIR}"
+binary_path="${artifact_dir}/${BINARY_NAME}"
+app_path="${artifact_dir}/bundle/osx/${APP_NAME}.app"
+app_contents="${app_path}/Contents"
+app_macos="${app_contents}/MacOS"
+app_resources="${app_contents}/Resources"
+
+echo "Compiling ${APP_NAME} (${TARGET_DIR})..."
+# shellcheck disable=SC2086
+cargo build ${BUILD_FLAG} --target "$target_triple"
+
+if [[ ! -x "$binary_path" ]]; then
+  echo "error: expected binary at ${binary_path}" >&2
+  exit 1
+fi
+
+echo "Creating application bundle..."
+rm -rf "$app_path"
+mkdir -p "$app_macos" "$app_resources"
+cp "$binary_path" "${app_macos}/${BINARY_NAME}"
+chmod +x "${app_macos}/${BINARY_NAME}"
+cp "$icon_path" "${app_resources}/AppIcon.icns"
+
+cat > "${app_contents}/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>${BINARY_NAME}</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIdentifier</key>
+  <string>${BUNDLE_ID}</string>
+  <key>CFBundleName</key>
+  <string>${APP_NAME}</string>
+  <key>CFBundleDisplayName</key>
+  <string>${APP_NAME}</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>${package_version}</string>
+  <key>CFBundleVersion</key>
+  <string>${package_version}</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>10.15.7</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+EOF
+
+echo "Bundled ${app_path}"
+
+if [[ "$LOCAL_INSTALL" == true ]]; then
+  install_path="/Applications/${APP_NAME}.app"
+  rm -rf "$install_path"
+  cp -R "$app_path" "$install_path"
+  echo "Installed application bundle: ${install_path}"
+  if [[ "$OPEN_RESULT" == true ]]; then
+    open "$install_path"
+  fi
+elif [[ "$OPEN_RESULT" == true && "$TARGET_DIR" == "debug" ]]; then
+  open "$app_path"
+fi
+
+if [[ "$TARGET_DIR" == "debug" ]]; then
+  echo "Debug build detected - skipping DMG creation"
+  echo "Created application bundle:"
+  echo "$app_path"
+  exit 0
+fi
+
+if [[ "$CREATE_DMG" != true ]]; then
+  echo "Created application bundle:"
+  echo "$app_path"
+  exit 0
+fi
+
+dmg_source_dir="${artifact_dir}/dmg"
+dmg_file_path="${artifact_dir}/${APP_NAME}-${arch_suffix}.dmg"
+
+rm -rf "$dmg_source_dir"
+mkdir -p "$dmg_source_dir"
+cp -R "$app_path" "$dmg_source_dir/"
+ln -s /Applications "$dmg_source_dir/Applications"
+
+echo "Creating DMG at ${dmg_file_path}"
+hdiutil create -volname "$APP_NAME" -srcfolder "$dmg_source_dir" -ov -format UDZO "$dmg_file_path"
+rm "$dmg_source_dir/Applications"
+
+echo "Created DMG:"
+echo "$dmg_file_path"
+
+if [[ "$OPEN_RESULT" == true ]]; then
+  open "$dmg_file_path"
+fi

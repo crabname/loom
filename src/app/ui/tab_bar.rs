@@ -17,7 +17,11 @@ impl LoomApp {
             }));
 
         for (index, tab) in self.tabs.iter().enumerate() {
-            let title = format!("{} {}", tab.method.as_str(), tab.title);
+            let title = format!(
+                "{} {}",
+                tab.protocol.list_badge(tab.method),
+                tab.title
+            );
             bar = bar.child(
                 TabChip::new()
                     .label(title)

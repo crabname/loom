@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[package.metadata.bundle]
+name = "Loom"
+identifier = "dev.loom.app"
+icon = ["assets/AppIcon.icns"]
+osx_minimum_system_version = "10.15.7"
+category = "Developer Tool"
+short_description = "Desktop HTTP client for macOS"
+
 [dependencies]
 anyhow = "1"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "1d217ee39d381ac101b7cf49d3d22451ac1093fe" }

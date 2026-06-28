@@ -31,13 +31,16 @@ fn protocol_icon(protocol: RequestProtocol) -> IconName {
     }
 }
 
-fn method_color(method: HttpMethod) -> gpui::Hsla {
-    match method {
-        HttpMethod::Get => gpui::rgb(0x609eff).into(),
-        HttpMethod::Post => gpui::rgb(0x4acc8f).into(),
-        HttpMethod::Put => gpui::rgb(0xfc9f30).into(),
-        HttpMethod::Patch => gpui::rgb(0x4fe3c2).into(),
-        HttpMethod::Delete => gpui::rgb(0xfa3d3d).into(),
+fn method_color(protocol: RequestProtocol, method: HttpMethod) -> gpui::Hsla {
+    match protocol {
+        RequestProtocol::Grpc => gpui::rgb(0x8b5cf6).into(),
+        RequestProtocol::Http => match method {
+            HttpMethod::Get => gpui::rgb(0x609eff).into(),
+            HttpMethod::Post => gpui::rgb(0x4acc8f).into(),
+            HttpMethod::Put => gpui::rgb(0xfc9f30).into(),
+            HttpMethod::Patch => gpui::rgb(0x4fe3c2).into(),
+            HttpMethod::Delete => gpui::rgb(0xfa3d3d).into(),
+        },
     }
 }
 
@@ -421,8 +424,11 @@ impl LoomApp {
                                                     .child(
                                                         div()
                                                             .text_xs()
-                                                            .text_color(method_color(request.method))
-                                                            .child(request.method.as_str()),
+                                                            .text_color(method_color(
+                                                                request.protocol,
+                                                                request.method,
+                                                            ))
+                                                            .child(request.protocol.list_badge(request.method)),
                                                     )
                                                     .child(div().text_sm().child(request.name.clone())),
                                             )
