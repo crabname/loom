@@ -24,7 +24,7 @@ impl LoomApp {
         }));
     }
 
-    fn reset_workspace_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn reset_workspace_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.tabs.clear();
         self.active_tab = 0;
         self.active_environment = self.default_environment_ref();

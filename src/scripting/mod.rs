@@ -2,6 +2,7 @@ mod context;
 mod host;
 mod response;
 mod runtime;
+mod tests;
 
 pub use context::{
     map_to_variables, merge_runtime_vars, variables_to_map, ScriptConsoleEntry, ScriptConsoleLevel,
@@ -9,6 +10,7 @@ pub use context::{
 };
 pub use response::ScriptResponseSnapshot;
 pub use runtime::run_script;
+pub use tests::{run_tests_script, TestResultEntry, TestStatus};
 
 use crate::transport::HttpResponse;
 

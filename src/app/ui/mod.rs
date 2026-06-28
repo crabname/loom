@@ -4,6 +4,7 @@ mod fields;
 mod rename;
 mod request;
 mod response;
+mod settings;
 mod sidebar;
 mod tab_bar;
 mod url_bar;
@@ -34,6 +35,7 @@ impl Render for LoomApp {
             .flex_col()
             .key_context("LoomApp")
             .on_action(cx.listener(Self::on_open_workspace))
+            .on_action(cx.listener(Self::on_open_settings))
             .child(
                 TitleBar::new()
                     .child(div().flex().items_center().child(self.app_menu_bar.clone())),

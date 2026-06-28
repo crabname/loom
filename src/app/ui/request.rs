@@ -48,6 +48,7 @@ impl LoomApp {
                 self.render_request_variables(cx).into_any_element()
             }
             RequestPanelTab::Script => self.render_request_scripts(cx).into_any_element(),
+            RequestPanelTab::Tests => self.render_request_tests(cx).into_any_element(),
             RequestPanelTab::Body => {
                 let body_type = self
                     .active_tab()
@@ -140,6 +141,7 @@ impl LoomApp {
                         RequestPanelTab::Body => 2,
                         RequestPanelTab::Vars => 3,
                         RequestPanelTab::Script => 4,
+                        RequestPanelTab::Tests => 5,
                     })
                     .on_click(cx.listener(|this, index: &usize, _, cx| {
                         if let Some(tab) = this.active_tab_mut() {
@@ -148,7 +150,8 @@ impl LoomApp {
                                 1 => RequestPanelTab::Headers,
                                 2 => RequestPanelTab::Body,
                                 3 => RequestPanelTab::Vars,
-                                _ => RequestPanelTab::Script,
+                                4 => RequestPanelTab::Script,
+                                _ => RequestPanelTab::Tests,
                             };
                             cx.notify();
                         }
@@ -157,7 +160,8 @@ impl LoomApp {
                     .child("Headers")
                     .child("Body")
                     .child("Vars")
-                    .child("Script"),
+                    .child("Script")
+                    .child("Tests"),
             )
             .child(
                 div()
@@ -212,6 +216,27 @@ impl LoomApp {
                     ),
             )
             .child(div().flex_1().min_h_0().child(editor.h_full()))
+    }
+
+    fn render_request_tests(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        v_flex()
+            .gap_2()
+            .size_full()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(
+                        "Tests run after the response. Use test() and expect() — results appear in \
+                         Response → Tests.",
+                    ),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(Input::new(&self.tests_script_input).h_full()),
+            )
     }
 
     fn render_request_variables(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {

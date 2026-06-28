@@ -20,38 +20,82 @@ const COLLECTIONS_DIR: &str = "collections";
 pub struct LoadedWorkspace {
     pub workspace: Workspace,
     pub collection_paths: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 pub struct LocalStorageProvider;
 
 impl LocalStorageProvider {
     pub fn load_workspace(path: &Path) -> Result<LoadedWorkspace, String> {
-        let workspace_file = read_yaml::<WorkspaceFile>(&path.join(WORKSPACE_FILE))?;
-        if workspace_file.version != WORKSPACE_FORMAT_VERSION {
+        if !path.is_dir() {
+            return Err(format!("workspace folder not found: {}", path.display()));
+        }
+
+        if !path.join(WORKSPACE_FILE).is_file() {
             return Err(format!(
-                "unsupported workspace format version {} (expected {WORKSPACE_FORMAT_VERSION})",
-                workspace_file.version
+                "workspace is missing {WORKSPACE_FILE} in {}",
+                path.display()
             ));
         }
 
-        let variables = if path.join(VARIABLES_FILE).exists() {
-            read_yaml::<VariablesFile>(&path.join(VARIABLES_FILE))?
-                .variables
-                .into_iter()
-                .map(Into::into)
-                .collect()
-        } else {
-            Vec::new()
+        let mut warnings = Vec::new();
+        let workspace_file = read_yaml::<WorkspaceFile>(&path.join(WORKSPACE_FILE))?;
+        if workspace_file.version != WORKSPACE_FORMAT_VERSION {
+            return Err(format!(
+                "unsupported workspace format version {} in {} (expected {WORKSPACE_FORMAT_VERSION})",
+                workspace_file.version,
+                path.display()
+            ));
+        }
+
+        let variables = match path.join(VARIABLES_FILE).exists() {
+            true => match read_yaml::<VariablesFile>(&path.join(VARIABLES_FILE)) {
+                Ok(file) => file
+                    .variables
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                Err(error) => {
+                    push_warning(
+                        &mut warnings,
+                        format!("skipped {VARIABLES_FILE} in {}: {error}", path.display()),
+                    );
+                    Vec::new()
+                }
+            },
+            false => Vec::new(),
         };
 
-        let environments = load_environments(&path.join(ENVIRONMENTS_DIR))?;
+        let environments = load_environments(&path.join(ENVIRONMENTS_DIR), &mut warnings)?;
 
         let mut collections = Vec::new();
         let mut collection_paths = Vec::new();
-        for collection_ref in workspace_file.collections {
+        let collection_refs = workspace_file.collections;
+        let had_collections = !collection_refs.is_empty();
+        for collection_ref in collection_refs {
             let collection_path = collection_dir_path(collection_ref.id);
-            collections.push(load_collection(&path.join(&collection_path), collection_ref.id)?);
-            collection_paths.push(collection_path);
+            let full_path = path.join(&collection_path);
+            match load_collection(&full_path, collection_ref.id, &mut warnings) {
+                Ok(collection) => {
+                    collections.push(collection);
+                    collection_paths.push(collection_path);
+                }
+                Err(error) => push_warning(
+                    &mut warnings,
+                    format!(
+                        "skipped collection {} in {}: {error}",
+                        collection_ref.id,
+                        full_path.display()
+                    ),
+                ),
+            }
+        }
+
+        if collections.is_empty() && had_collections {
+            warnings.push(format!(
+                "workspace {} loaded with no collections; check collections/ for damaged files",
+                path.display()
+            ));
         }
 
         Ok(LoadedWorkspace {
@@ -62,6 +106,7 @@ impl LocalStorageProvider {
                 collections,
             ),
             collection_paths,
+            warnings,
         })
     }
 
@@ -257,7 +302,23 @@ fn prune_stale_collection_dirs(collections_root: &Path, keep: &HashSet<String>) 
     prune_stale_subdirs(collections_root, keep, &[])
 }
 
-fn load_collection(collection_path: &Path, expected_id: EntityId) -> Result<Collection, String> {
+fn push_warning(warnings: &mut Vec<String>, message: String) {
+    eprintln!("{message}");
+    warnings.push(message);
+}
+
+fn load_collection(
+    collection_path: &Path,
+    expected_id: EntityId,
+    warnings: &mut Vec<String>,
+) -> Result<Collection, String> {
+    if !collection_path.is_dir() {
+        return Err(format!(
+            "collection folder not found: {}",
+            collection_path.display()
+        ));
+    }
+
     let collection_file = read_yaml::<CollectionFile>(&collection_path.join(COLLECTION_FILE))?;
     if collection_file.id != expected_id {
         return Err(format!(
@@ -273,7 +334,8 @@ fn load_collection(collection_path: &Path, expected_id: EntityId) -> Result<Coll
         .map(Into::into)
         .collect::<Vec<Variable>>();
 
-    let environments = load_environments(&collection_path.join(ENVIRONMENTS_DIR))?;
+    let environments =
+        load_environments(&collection_path.join(ENVIRONMENTS_DIR), warnings)?;
 
     let mut folders = Vec::new();
     let mut requests = Vec::new();
@@ -292,12 +354,24 @@ fn load_collection(collection_path: &Path, expected_id: EntityId) -> Result<Coll
         }
 
         if file_type.is_dir() {
-            folders.push(load_folder(&entry_path)?);
+            match load_folder(&entry_path, warnings) {
+                Ok(folder) => folders.push(folder),
+                Err(error) => push_warning(
+                    warnings,
+                    format!("skipped folder {}: {error}", entry_path.display()),
+                ),
+            }
             continue;
         }
 
         if file_type.is_file() && entry_path.extension().is_some_and(|ext| ext == "yml") {
-            requests.push(load_request(&entry_path)?);
+            match load_request(&entry_path) {
+                Ok(request) => requests.push(request),
+                Err(error) => push_warning(
+                    warnings,
+                    format!("skipped request {}: {error}", entry_path.display()),
+                ),
+            }
         }
     }
 
@@ -314,7 +388,7 @@ fn load_collection(collection_path: &Path, expected_id: EntityId) -> Result<Coll
     ))
 }
 
-fn load_folder(folder_path: &Path) -> Result<CollectionFolder, String> {
+fn load_folder(folder_path: &Path, warnings: &mut Vec<String>) -> Result<CollectionFolder, String> {
     let mut folder: CollectionFolder =
         read_yaml::<FolderFile>(&folder_path.join(FOLDER_FILE))?.into();
 
@@ -344,7 +418,13 @@ fn load_folder(folder_path: &Path) -> Result<CollectionFolder, String> {
         }
 
         if file_type.is_file() && entry_path.extension().is_some_and(|ext| ext == "yml") {
-            folder.requests.push(load_request(&entry_path)?);
+            match load_request(&entry_path) {
+                Ok(request) => folder.requests.push(request),
+                Err(error) => push_warning(
+                    warnings,
+                    format!("skipped request {}: {error}", entry_path.display()),
+                ),
+            }
         }
     }
 
@@ -368,7 +448,7 @@ fn load_request(path: &Path) -> Result<Request, String> {
     Ok(request)
 }
 
-fn load_environments(path: &Path) -> Result<Vec<Environment>, String> {
+fn load_environments(path: &Path, warnings: &mut Vec<String>) -> Result<Vec<Environment>, String> {
     if !path.is_dir() {
         return Ok(Vec::new());
     }
@@ -386,7 +466,13 @@ fn load_environments(path: &Path) -> Result<Vec<Environment>, String> {
 
         let entry_path = entry.path();
         if entry_path.extension().is_some_and(|ext| ext == "yml") {
-            environments.push(load_environment(&entry_path)?);
+            match load_environment(&entry_path) {
+                Ok(environment) => environments.push(environment),
+                Err(error) => push_warning(
+                    warnings,
+                    format!("skipped environment {}: {error}", entry_path.display()),
+                ),
+            }
         }
     }
 

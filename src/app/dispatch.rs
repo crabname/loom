@@ -8,9 +8,11 @@ use crate::domain::{
 };
 use crate::scripting::{
     map_to_variables, merge_runtime_vars, run_post_response_script, run_pre_request_script,
-    variables_to_map, ScriptConsoleEntry, ScriptHostState, ScriptResult,
+    run_tests_script, variables_to_map, ScriptConsoleEntry, ScriptHostState, ScriptResult,
 };
 use crate::transport::{block_on, send_http_request, HttpRequestBody, HttpRequestResult};
+
+use crate::app::tab::ResponsePanelTab;
 
 use super::LoomApp;
 
@@ -206,6 +208,7 @@ impl LoomApp {
             tab.response_body_view = ResponseBodyView::Raw;
             tab.response_headers.clear();
             tab.script_console.clear();
+            tab.test_results.clear();
         }
         self.sync_active_tab_to_collection(cx);
         self.reload_response_body_input(window, cx);
@@ -217,6 +220,7 @@ impl LoomApp {
         let folder_index = tab.source.and_then(|source| source.folder);
         let pre_request_script = tab.pre_request_script.clone();
         let post_response_script = tab.post_response_script.clone();
+        let tests_script = tab.tests_script.clone();
         let mut timing = RequestTimingBreakdown::default();
 
         if !pre_request_script.trim().is_empty() {
@@ -276,6 +280,7 @@ impl LoomApp {
                         tab_id,
                         result,
                         post_response_script,
+                        tests_script,
                         request_url,
                         timing,
                         window,
@@ -298,6 +303,7 @@ impl LoomApp {
         tab_id: usize,
         result: HttpRequestResult,
         post_response_script: String,
+        tests_script: String,
         request_url: String,
         mut timing: RequestTimingBreakdown,
         window: &mut Window,
@@ -336,15 +342,15 @@ impl LoomApp {
         }
 
         if !post_response_script.trim().is_empty()
-            && let Some(response) = response_for_script
+            && let Some(ref response) = response_for_script
         {
             let script_started = std::time::Instant::now();
             let host_state = self.build_script_host_state();
             match run_post_response_script(
                 &post_response_script,
                 host_state,
-                &response,
-                request_url,
+                response,
+                request_url.clone(),
             ) {
                 Ok(script_result) => self.apply_script_result_for_tab(tab_id, &script_result),
                 Err(error) => {
@@ -353,6 +359,28 @@ impl LoomApp {
                 }
             }
             timing.post_response_script_ms = script_started.elapsed().as_millis();
+        }
+
+        if !tests_script.trim().is_empty()
+            && let Some(response) = response_for_script
+        {
+            let host_state = self.build_script_host_state();
+            match run_tests_script(&tests_script, host_state, &response, request_url) {
+                Ok(test_result) => {
+                    self.apply_script_result_for_tab(tab_id, &test_result.script_result);
+                    self.tabs[tab_index].test_results = test_result.test_results;
+                    if !self.tabs[tab_index].test_results.is_empty() {
+                        self.tabs[tab_index].response_panel_tab = ResponsePanelTab::Tests;
+                    }
+                }
+                Err(error) => {
+                    self.tabs[tab_index].test_results = vec![];
+                    self.tabs[tab_index].response_error =
+                        Some(format!("Tests script error: {error}"));
+                }
+            }
+        } else {
+            self.tabs[tab_index].test_results.clear();
         }
 
         let tab = &mut self.tabs[tab_index];

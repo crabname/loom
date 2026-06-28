@@ -132,10 +132,12 @@ impl LoomApp {
         let body = self.body_input.read(cx).value().to_string();
         let pre_request_script = self.pre_request_script_input.read(cx).value().to_string();
         let post_response_script = self.post_response_script_input.read(cx).value().to_string();
+        let tests_script = self.tests_script_input.read(cx).value().to_string();
         if let Some(tab) = self.tabs.get_mut(self.active_tab) {
             tab.request_body = body;
             tab.pre_request_script = pre_request_script;
             tab.post_response_script = post_response_script;
+            tab.tests_script = tests_script;
         }
     }
 
@@ -150,6 +152,9 @@ impl LoomApp {
         });
         self.post_response_script_input.update(cx, |input, cx| {
             input.set_value(tab.post_response_script.clone(), window, cx);
+        });
+        self.tests_script_input.update(cx, |input, cx| {
+            input.set_value(tab.tests_script.clone(), window, cx);
         });
     }
 }

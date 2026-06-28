@@ -93,6 +93,7 @@ impl Request {
             variables: default_variables(),
             pre_request_script: String::new(),
             post_response_script: String::new(),
+            tests_script: String::new(),
         }
     }
 }
@@ -113,6 +114,7 @@ pub struct Request {
     pub variables: Vec<Variable>,
     pub pre_request_script: String,
     pub post_response_script: String,
+    pub tests_script: String,
 }
 
 #[derive(Debug, Clone)]

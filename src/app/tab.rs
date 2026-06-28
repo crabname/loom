@@ -5,12 +5,14 @@ use crate::domain::{
 };
 
 use crate::scripting::ScriptConsoleEntry;
+use crate::scripting::TestResultEntry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResponsePanelTab {
     Body,
     Headers,
     Console,
+    Tests,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +22,7 @@ pub enum RequestPanelTab {
     Body,
     Vars,
     Script,
+    Tests,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +57,7 @@ pub struct Tab {
     pub variables: Vec<Variable>,
     pub pre_request_script: String,
     pub post_response_script: String,
+    pub tests_script: String,
     pub response_panel_tab: ResponsePanelTab,
     pub response_body: ResponseBody,
     pub response_body_view: ResponseBodyView,
@@ -65,6 +69,7 @@ pub struct Tab {
     pub response_size_bytes: Option<usize>,
     pub response_error: Option<String>,
     pub script_console: Vec<ScriptConsoleEntry>,
+    pub test_results: Vec<TestResultEntry>,
     pub loading: bool,
 }
 
@@ -87,6 +92,7 @@ impl Tab {
             variables: request.variables.clone(),
             pre_request_script: request.pre_request_script.clone(),
             post_response_script: request.post_response_script.clone(),
+            tests_script: request.tests_script.clone(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
@@ -98,6 +104,7 @@ impl Tab {
             response_size_bytes: None,
             response_error: None,
             script_console: Vec::new(),
+            test_results: Vec::new(),
             loading: false,
         }
     }
@@ -120,6 +127,7 @@ impl Tab {
             variables: default_variables(),
             pre_request_script: String::new(),
             post_response_script: String::new(),
+            tests_script: String::new(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
@@ -131,6 +139,7 @@ impl Tab {
             response_size_bytes: None,
             response_error: None,
             script_console: Vec::new(),
+            test_results: Vec::new(),
             loading: false,
         }
     }
@@ -148,6 +157,7 @@ impl Tab {
         request.variables = self.variables.clone();
         request.pre_request_script = self.pre_request_script.clone();
         request.post_response_script = self.post_response_script.clone();
+        request.tests_script = self.tests_script.clone();
         request
     }
 }

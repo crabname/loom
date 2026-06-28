@@ -379,6 +379,7 @@ pub fn substitute_request(request: &Request, pool: &HashMap<String, String>) -> 
         variables: request.variables.clone(),
         pre_request_script: request.pre_request_script.clone(),
         post_response_script: request.post_response_script.clone(),
+        tests_script: request.tests_script.clone(),
     }
 }
 

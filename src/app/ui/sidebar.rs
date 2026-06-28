@@ -167,14 +167,28 @@ impl LoomApp {
                                     .child("Workspace"),
                             )
                             .child(
-                                Button::new("workspace-variables")
-                                    .ghost()
-                                    .xsmall()
-                                    .label("Variables")
-                                    .tooltip("Workspace variables")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.open_workspace_variables_dialog(window, cx);
-                                    })),
+                                h_flex()
+                                    .gap_1()
+                                    .child(
+                                        Button::new("workspace-variables")
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Variables")
+                                            .tooltip("Workspace variables")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.open_workspace_variables_dialog(window, cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("open-settings")
+                                            .ghost()
+                                            .xsmall()
+                                            .icon(IconName::Settings)
+                                            .tooltip("Application settings")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.open_settings_dialog(window, cx);
+                                            })),
+                                    ),
                             ),
                     )
                     .child(

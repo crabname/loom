@@ -58,6 +58,13 @@ impl LoomApp {
     ) {
         match result {
             Ok(loaded) => {
+                if !loaded.warnings.is_empty() {
+                    let preview = loaded.warnings.iter().take(3).cloned().collect::<Vec<_>>().join("\n");
+                    window.push_notification(
+                        Notification::warning("Workspace loaded with warnings").message(preview),
+                        cx,
+                    );
+                }
                 self.integrate_loaded_workspace(path, loaded, window, cx);
             }
             Err(error) => {

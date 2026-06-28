@@ -1,14 +1,18 @@
 mod app_state;
+mod bootstrap;
 mod local;
 mod paths;
+mod repair;
 mod yaml;
 
 pub use app_state::{AppState, WorkspaceRef};
+pub use bootstrap::BootstrapConfig;
 pub use local::{
     default_collection_paths, default_workspace_collection_paths, LoadedWorkspace,
     LocalStorageProvider, remove_collection_dir, remove_folder_dir,
 };
 pub use paths::AppPaths;
+pub use repair::{clear_local_workspace_dir, remove_missing_workspace_refs, remove_workspace_refs};
 
 #[allow(dead_code)]
 pub trait StorageProvider {

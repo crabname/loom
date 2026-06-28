@@ -20,6 +20,12 @@ struct ConsoleCaptures {
     level: ScriptConsoleLevel,
 }
 
+pub(crate) type PreparedScriptContext = (
+    Context,
+    ScriptHostHandle,
+    Rc<RefCell<Vec<ScriptConsoleEntry>>>,
+);
+
 pub fn run_script(
     script: &str,
     state: ScriptHostState,
@@ -30,6 +36,23 @@ pub fn run_script(
         return Ok(ScriptResult::default());
     }
 
+    let (mut context, handle, console_logs) = init_script_context(state, response)?;
+
+    let source = Source::from_bytes(trimmed.as_bytes());
+    context
+        .eval(source)
+        .map_err(format_script_error)?;
+
+    Ok(ScriptResult::from_handle(
+        &handle,
+        console_logs.borrow().clone(),
+    ))
+}
+
+pub(crate) fn init_script_context(
+    state: ScriptHostState,
+    response: Option<ScriptResponseSnapshot>,
+) -> Result<PreparedScriptContext, String> {
     let handle = ScriptHostHandle::new(state);
     let mut context = Context::default();
 
@@ -39,18 +62,7 @@ pub fn run_script(
     }
     let console_logs = register_console(&mut context);
 
-    let source = Source::from_bytes(trimmed.as_bytes());
-    let result = context
-        .eval(source)
-        .map_err(format_script_error);
-
-    match result {
-        Ok(_) => Ok(ScriptResult::from_handle(
-            &handle,
-            console_logs.borrow().clone(),
-        )),
-        Err(message) => Err(message),
-    }
+    Ok((context, handle, console_logs))
 }
 
 fn register_console(context: &mut Context) -> Rc<RefCell<Vec<ScriptConsoleEntry>>> {

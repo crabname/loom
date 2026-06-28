@@ -159,6 +159,21 @@ host.setVar("activeUserName", res.body.name);
 host.setVar("sessionToken", "tok-" + String(Date.now()));
 console.log("Saved session for", res.body.name, "from", res.getUrl());"#
                 .into();
+            request.tests_script = r#"test("status is 200", function () {
+  expect(res.status).to.equal(200);
+});
+
+test("response has user id", function () {
+  expect(res.body).to.be.an("object");
+  expect(res.body).to.have.property("id");
+  expect(res.body.id).to.be.a("number");
+});
+
+test("response has name", function () {
+  expect(res.body.name).to.be.a("string");
+  expect(res.body.name.length).to.be.a("number");
+});"#
+                .into();
         }),
         demo_request("User Posts (from session)", |request| {
             request.url = "{{baseUrl}}/users/{{activeUserId}}/posts".into();

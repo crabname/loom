@@ -91,6 +91,8 @@ pub struct RequestFile {
     pub pre_request_script: String,
     #[serde(default)]
     pub post_response_script: String,
+    #[serde(default)]
+    pub tests_script: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Copy)]
@@ -274,6 +276,7 @@ impl From<RequestFile> for Request {
             variables: normalize_variables(value.variables.into_iter().map(Into::into).collect()),
             pre_request_script: value.pre_request_script,
             post_response_script: value.post_response_script,
+            tests_script: value.tests_script,
         }
     }
 }
@@ -482,6 +485,7 @@ impl From<&Request> for RequestFile {
             variables: serializable_variables(&value.variables),
             pre_request_script: value.pre_request_script.clone(),
             post_response_script: value.post_response_script.clone(),
+            tests_script: value.tests_script.clone(),
         }
     }
 }

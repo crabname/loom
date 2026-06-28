@@ -29,6 +29,7 @@ impl LoomApp {
             AppPaths::fallback()
         });
         let startup = load_startup_workspaces(&app_paths);
+        let startup_warnings = startup.startup_warnings;
         let workspaces = startup.workspaces;
         let active_workspace = startup.active_workspace;
         let (request, tab_source) = first_open_request(&workspaces, active_workspace)
@@ -122,6 +123,16 @@ impl LoomApp {
                 .default_value(tab.post_response_script.clone())
         });
 
+        let tests_script_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .multi_line(true)
+                .rows(12)
+                .code_editor("javascript")
+                .searchable(true)
+                .placeholder("// test(\"name\", function () { expect(res.status).to.equal(200); });")
+                .default_value(tab.tests_script.clone())
+        });
+
         let response_body_input = cx.new(|cx| {
             InputState::new(window, cx)
                 .multi_line(true)
@@ -154,6 +165,7 @@ impl LoomApp {
             body_input,
             pre_request_script_input,
             post_response_script_input,
+            tests_script_input,
             response_body_input,
             method_select,
             body_type_select,
@@ -172,6 +184,7 @@ impl LoomApp {
             query_param_subscriptions: Vec::new(),
             collections_tree,
             variable_hover,
+            startup_warnings,
             _subscriptions: Vec::new(),
         };
 
@@ -185,6 +198,7 @@ impl LoomApp {
         app.sync_collections_tree_selection(cx);
         app.reload_field_inputs(window, cx);
         app.sync_url_from_params(window, cx);
+        app.show_startup_warnings(window, cx);
 
         app._subscriptions.push(cx.on_app_quit(|app, cx| {
             app.flush_workspace_edits(cx);
@@ -232,6 +246,16 @@ impl LoomApp {
                 let script = this.post_response_script_input.read(cx).value().to_string();
                 if let Some(tab) = this.active_tab_mut() {
                     tab.post_response_script = script;
+                }
+                this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.tests_script_input, window, {
+            move |this, _, _: &InputEvent, _, cx| {
+                let script = this.tests_script_input.read(cx).value().to_string();
+                if let Some(tab) = this.active_tab_mut() {
+                    tab.tests_script = script;
                 }
                 this.sync_active_tab_to_collection(cx);
             }

@@ -34,7 +34,7 @@ use workspace_binding::WorkspaceBinding;
 
 use ui::{MultipartRowInputs, RowInputs};
 
-pub use menus::OpenWorkspace;
+pub use menus::{OpenSettings, OpenWorkspace};
 
 pub struct LoomApp {
     pub(super) app_paths: AppPaths,
@@ -51,6 +51,7 @@ pub struct LoomApp {
     pub(super) body_input: Entity<InputState>,
     pub(super) pre_request_script_input: Entity<InputState>,
     pub(super) post_response_script_input: Entity<InputState>,
+    pub(super) tests_script_input: Entity<InputState>,
     pub(super) response_body_input: Entity<InputState>,
     pub(super) method_select: Entity<SelectState<Vec<&'static str>>>,
     pub(super) body_type_select: Entity<SelectState<Vec<&'static str>>>,
@@ -72,5 +73,6 @@ pub struct LoomApp {
 
     pub(super) collections_tree: Entity<TreeState>,
     pub(super) variable_hover: std::rc::Rc<variable_hover::VariableHoverProvider>,
+    pub(super) startup_warnings: Vec<String>,
     pub(super) _subscriptions: Vec<Subscription>,
 }

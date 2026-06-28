@@ -1,6 +1,7 @@
 use crate::domain::Workspace;
 use crate::storage::{
-    default_workspace_collection_paths, AppPaths, AppState, LocalStorageProvider, WorkspaceRef,
+    default_workspace_collection_paths, remove_missing_workspace_refs, remove_workspace_refs,
+    AppPaths, AppState, LocalStorageProvider, WorkspaceRef,
 };
 
 use super::{TabSource, WorkspaceBinding};
@@ -10,18 +11,40 @@ pub struct StartupWorkspaces {
     pub bindings: Vec<WorkspaceBinding>,
     pub collection_paths: Vec<Vec<String>>,
     pub active_workspace: usize,
+    pub startup_warnings: Vec<String>,
 }
 
 pub fn load_startup_workspaces(app_paths: &AppPaths) -> StartupWorkspaces {
+    let mut startup_warnings = match remove_missing_workspace_refs(app_paths) {
+        Ok(missing) => missing
+            .into_iter()
+            .map(|path| {
+                format!(
+                    "removed missing workspace from app state: {}",
+                    path.display()
+                )
+            })
+            .collect::<Vec<_>>(),
+        Err(error) => {
+            eprintln!("failed to repair app state: {error}");
+            vec![format!("failed to repair app state: {error}")]
+        }
+    };
+
     let app_state = AppState::load(app_paths);
     if app_state.workspaces.is_empty() {
-        return demo_startup();
+        startup_warnings.extend(demo_startup().startup_warnings);
+        return StartupWorkspaces {
+            startup_warnings,
+            ..demo_startup()
+        };
     }
 
     let mut workspaces = Vec::new();
     let mut bindings = Vec::new();
     let mut collection_paths = Vec::new();
     let mut local_paths = Vec::new();
+    let mut failed_paths = Vec::new();
 
     for workspace_ref in &app_state.workspaces {
         let WorkspaceRef::Local { path } = workspace_ref else {
@@ -30,22 +53,37 @@ pub fn load_startup_workspaces(app_paths: &AppPaths) -> StartupWorkspaces {
 
         match LocalStorageProvider::load_workspace(path) {
             Ok(loaded) => {
+                startup_warnings.extend(loaded.warnings);
                 local_paths.push(path.clone());
                 workspaces.push(loaded.workspace);
                 bindings.push(WorkspaceBinding::Local(path.clone()));
                 collection_paths.push(loaded.collection_paths);
             }
             Err(error) => {
-                eprintln!(
+                let message = format!(
                     "failed to load workspace {}: {error}",
                     path.display()
                 );
+                eprintln!("{message}");
+                startup_warnings.push(message);
+                failed_paths.push(path.clone());
             }
         }
     }
 
+    if !failed_paths.is_empty()
+        && let Err(error) = remove_workspace_refs(app_paths, &failed_paths)
+    {
+        startup_warnings.push(format!("failed to clean app state: {error}"));
+    }
+
     if workspaces.is_empty() {
-        return demo_startup();
+        let demo = demo_startup();
+        startup_warnings.extend(demo.startup_warnings);
+        return StartupWorkspaces {
+            startup_warnings,
+            ..demo
+        };
     }
 
     let active_workspace = app_state
@@ -65,6 +103,7 @@ pub fn load_startup_workspaces(app_paths: &AppPaths) -> StartupWorkspaces {
         bindings,
         collection_paths,
         active_workspace,
+        startup_warnings,
     }
 }
 
@@ -77,6 +116,7 @@ fn demo_startup() -> StartupWorkspaces {
         bindings: vec![WorkspaceBinding::Ephemeral; workspace_count],
         active_workspace: 0,
         workspaces,
+        startup_warnings: Vec::new(),
     }
 }
 

@@ -14,7 +14,7 @@ use crate::domain::{
     format_binary_body_message, format_response_size, is_html_content, response_content_type,
     KeyValueField, RequestTimingBreakdown, ResponseBody, ResponseBodyView,
 };
-use crate::scripting::{ScriptConsoleEntry, ScriptConsoleLevel};
+use crate::scripting::{ScriptConsoleEntry, ScriptConsoleLevel, TestResultEntry, TestStatus};
 
 use super::LoomApp;
 
@@ -64,6 +64,83 @@ fn render_script_console(entries: &[ScriptConsoleEntry], cx: &App) -> AnyElement
                         .child(entry.message.clone()),
                 ),
         );
+    }
+
+    v_flex()
+        .size_full()
+        .min_h_0()
+        .child(list.flex_1().overflow_y_scrollbar())
+        .into_any_element()
+}
+
+fn render_test_results(entries: &[TestResultEntry], cx: &App) -> AnyElement {
+    if entries.is_empty() {
+        return div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_color(cx.theme().muted_foreground)
+            .child("Test results will appear here after sending a request with tests")
+            .into_any_element();
+    }
+
+    let passed = entries
+        .iter()
+        .filter(|entry| entry.status == TestStatus::Pass)
+        .count();
+    let failed = entries.len() - passed;
+
+    let mut list = v_flex()
+        .gap_2()
+        .child(
+            div()
+                .text_sm()
+                .text_color(cx.theme().muted_foreground)
+                .child(format!("{passed} passed, {failed} failed")),
+        );
+
+    for entry in entries {
+        let (icon, color) = match entry.status {
+            TestStatus::Pass => ("✓", cx.theme().green),
+            TestStatus::Fail => ("✗", cx.theme().red),
+        };
+
+        let mut row = v_flex()
+            .gap_1()
+            .px_2()
+            .py_1()
+            .rounded(px(4.))
+            .child(
+                h_flex()
+                    .gap_2()
+                    .items_start()
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(color)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(icon),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_sm()
+                            .child(entry.description.clone()),
+                    ),
+            );
+
+        if let Some(error) = &entry.error {
+            row = row.child(
+                div()
+                    .pl_6()
+                    .text_xs()
+                    .text_color(cx.theme().red)
+                    .child(error.clone()),
+            );
+        }
+
+        list = list.child(row);
     }
 
     v_flex()
@@ -415,6 +492,7 @@ impl LoomApp {
             body,
             headers,
             script_console,
+            test_results,
         ) = self
             .active_tab()
             .map(|tab| {
@@ -431,6 +509,7 @@ impl LoomApp {
                     tab.response_body.clone(),
                     tab.response_headers.clone(),
                     tab.script_console.clone(),
+                    tab.test_results.clone(),
                 )
             })
             .unwrap_or((
@@ -444,6 +523,7 @@ impl LoomApp {
                 None,
                 None,
                 ResponseBody::empty(),
+                Vec::new(),
                 Vec::new(),
                 Vec::new(),
             ));
@@ -469,6 +549,7 @@ impl LoomApp {
             }
             ResponsePanelTab::Headers => self.render_response_headers(&headers, cx),
             ResponsePanelTab::Console => render_script_console(&script_console, cx),
+            ResponsePanelTab::Tests => render_test_results(&test_results, cx),
         };
 
         let mut panel = v_flex()
@@ -494,20 +575,23 @@ impl LoomApp {
                         ResponsePanelTab::Body => 0,
                         ResponsePanelTab::Headers => 1,
                         ResponsePanelTab::Console => 2,
+                        ResponsePanelTab::Tests => 3,
                     })
                     .on_click(cx.listener(|this, index: &usize, _, cx| {
                         if let Some(tab) = this.active_tab_mut() {
                             tab.response_panel_tab = match *index {
                                 0 => ResponsePanelTab::Body,
                                 1 => ResponsePanelTab::Headers,
-                                _ => ResponsePanelTab::Console,
+                                2 => ResponsePanelTab::Console,
+                                _ => ResponsePanelTab::Tests,
                             };
                             cx.notify();
                         }
                     }))
                     .child("Body")
                     .child("Headers")
-                    .child("Console"),
+                    .child("Console")
+                    .child("Tests"),
             );
 
         if panel_tab == ResponsePanelTab::Body && html_preview_available {

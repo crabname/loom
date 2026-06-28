@@ -98,6 +98,7 @@ impl LoomApp {
             request.variables = tab.variables;
             request.pre_request_script = tab.pre_request_script.clone();
             request.post_response_script = tab.post_response_script.clone();
+            request.tests_script = tab.tests_script.clone();
         }
 
         let _ = cx;
