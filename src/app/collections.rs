@@ -88,7 +88,10 @@ impl LoomApp {
             .and_then(|collection| collection.request_mut(source.folder, source.request))
         {
             request.url = tab.url;
+            request.protocol = tab.protocol;
             request.method = tab.method;
+            request.grpc_service = tab.grpc_service.clone();
+            request.grpc_method = tab.grpc_method.clone();
             request.query_params = tab.query_params;
             request.headers = tab.headers;
             request.body_type = tab.body_type;

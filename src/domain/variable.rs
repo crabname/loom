@@ -370,6 +370,8 @@ pub fn substitute_request(request: &Request, pool: &HashMap<String, String>) -> 
         protocol: request.protocol,
         method: request.method,
         url: substitute_variables(&request.url, pool),
+        grpc_service: substitute_variables(&request.grpc_service, pool),
+        grpc_method: substitute_variables(&request.grpc_method, pool),
         query_params: substitute_key_value_fields(&request.query_params, pool),
         headers: substitute_key_value_fields(&request.headers, pool),
         body_type: request.body_type,

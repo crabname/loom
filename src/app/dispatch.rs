@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use gpui::*;
 
 use crate::domain::{
-    build_variable_pool, substitute_request, EnvironmentScope, Request, RequestTimingBreakdown,
-    ResponseBody, ResponseBodyView, Variable, VariableLayers,
+    build_variable_pool, substitute_request, EnvironmentScope, Request, RequestProtocol,
+    RequestTimingBreakdown, ResponseBody, ResponseBodyView, Variable, VariableLayers,
 };
 use crate::scripting::{
     map_to_variables, merge_runtime_vars, run_post_response_script, run_pre_request_script,
     run_tests_script, variables_to_map, ScriptConsoleEntry, ScriptHostState, ScriptResult,
 };
-use crate::transport::{block_on, send_http_request, HttpRequestBody, HttpRequestResult};
+use crate::transport::{block_on, send_grpc_request, send_http_request, HttpRequestBody, HttpRequestResult};
 
 use crate::app::tab::ResponsePanelTab;
 
@@ -250,7 +250,10 @@ impl LoomApp {
         );
 
         let url = resolved.url;
+        let protocol = resolved.protocol;
         let method = resolved.method;
+        let grpc_service = resolved.grpc_service;
+        let grpc_method = resolved.grpc_method;
         let query_params = resolved.query_params;
         let headers = resolved.headers;
         let body_type = resolved.body_type;
@@ -258,21 +261,39 @@ impl LoomApp {
         let form_fields = resolved.form_fields;
         let multipart_fields = resolved.multipart_fields;
 
-        let request_url = url.clone();
+        let request_url = if protocol == RequestProtocol::Grpc {
+            format!("{grpc_service}/{grpc_method}")
+        } else {
+            url.clone()
+        };
 
         cx.spawn_in(window, async move |this, cx| {
-            let result = block_on(send_http_request(
-                url,
-                method,
-                query_params,
-                headers,
-                HttpRequestBody {
-                    body_type,
-                    raw_body: request_body,
-                    form_fields,
-                    multipart_fields,
-                },
-            ));
+            let result = block_on(async {
+                if protocol == RequestProtocol::Grpc {
+                    send_grpc_request(
+                        &url,
+                        &grpc_service,
+                        &grpc_method,
+                        headers,
+                        &request_body,
+                    )
+                    .await
+                } else {
+                    send_http_request(
+                        url,
+                        method,
+                        query_params,
+                        headers,
+                        HttpRequestBody {
+                            body_type,
+                            raw_body: request_body,
+                            form_fields,
+                            multipart_fields,
+                        },
+                    )
+                    .await
+                }
+            });
 
             cx.update(|window, app| {
                 this.update(app, |app, cx| {

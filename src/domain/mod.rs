@@ -1,5 +1,6 @@
 mod body_format;
 mod curl;
+mod grpc;
 mod environment;
 mod fields;
 mod id;
@@ -20,6 +21,7 @@ pub use url::{
 pub use environment::{Environment, EnvironmentRef, EnvironmentScope};
 pub use fields::*;
 pub use id::EntityId;
+pub use grpc::GrpcMethodInfo;
 pub use request::{Collection, CollectionFolder, Request, RequestProtocol, BodyType, HttpMethod};
 pub use response::*;
 pub use timing::{HttpTiming, RequestTimingBreakdown};

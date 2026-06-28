@@ -9,7 +9,7 @@ use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _,
 };
 
-use crate::domain::BodyType;
+use crate::domain::{BodyType, RequestProtocol};
 
 use crate::app::tab::{RequestPanelTab, RequestScriptSubTab};
 
@@ -50,10 +50,14 @@ impl LoomApp {
             RequestPanelTab::Script => self.render_request_scripts(cx).into_any_element(),
             RequestPanelTab::Tests => self.render_request_tests(cx).into_any_element(),
             RequestPanelTab::Body => {
-                let body_type = self
-                    .active_tab()
-                    .map(|tab| tab.body_type)
-                    .unwrap_or(BodyType::None);
+                let is_grpc = self.active_protocol() == RequestProtocol::Grpc;
+                let body_type = if is_grpc {
+                    BodyType::Json
+                } else {
+                    self.active_tab()
+                        .map(|tab| tab.body_type)
+                        .unwrap_or(BodyType::None)
+                };
 
                 let mut column = v_flex()
                     .gap_2()
@@ -62,21 +66,46 @@ impl LoomApp {
                         let mut header = h_flex()
                             .items_center()
                             .gap_2()
-                            .child(div().flex_1().text_sm().child("Body"))
-                            .child(
+                            .child(div().flex_1().text_sm().child("Body"));
+
+                        if is_grpc {
+                            header = header
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child("JSON"),
+                                )
+                                .child(
+                                    Button::new("fill-grpc-body")
+                                        .label("Fill from schema")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.fill_grpc_request_body_from_schema(window, cx);
+                                        })),
+                                )
+                                .child(
+                                    Button::new("format-body")
+                                        .label("Format")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.format_request_body(window, cx);
+                                        })),
+                                );
+                        } else {
+                            header = header.child(
                                 Select::new(&self.body_type_select)
                                     .appearance(false)
                                     .small(),
                             );
 
-                        if matches!(body_type, BodyType::Json | BodyType::Xml) {
-                            header = header.child(
-                                Button::new("format-body")
-                                    .label("Format")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.format_request_body(window, cx);
-                                    })),
-                            );
+                            if matches!(body_type, BodyType::Json | BodyType::Xml) {
+                                header = header.child(
+                                    Button::new("format-body")
+                                        .label("Format")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.format_request_body(window, cx);
+                                        })),
+                                );
+                            }
                         }
 
                         header
@@ -114,7 +143,11 @@ impl LoomApp {
                             .items_center()
                             .justify_center()
                             .text_color(cx.theme().muted_foreground)
-                            .child("No body for this request"),
+                            .child(if is_grpc {
+                                "gRPC request body uses JSON"
+                            } else {
+                                "No body for this request"
+                            }),
                     ),
                     BodyType::Json | BodyType::Xml => {
                         column.child(div().flex_1().child(Input::new(&self.body_input).h_full()))

@@ -1,5 +1,6 @@
 mod app_state;
 mod autosave;
+mod grpc;
 mod collection_import;
 mod collections;
 mod dispatch;
@@ -55,6 +56,11 @@ pub struct LoomApp {
     pub(super) tests_script_input: Entity<InputState>,
     pub(super) response_body_input: Entity<InputState>,
     pub(super) method_select: Entity<SelectState<Vec<&'static str>>>,
+    pub(super) protocol_select: Entity<SelectState<Vec<&'static str>>>,
+    pub(super) grpc_service_input: Entity<InputState>,
+    pub(super) grpc_method_input: Entity<InputState>,
+    pub(super) grpc_method_select: Entity<SelectState<Vec<SharedString>>>,
+    pub(super) grpc_discovered_methods: Vec<crate::domain::GrpcMethodInfo>,
     pub(super) body_type_select: Entity<SelectState<Vec<&'static str>>>,
     pub(super) workspace_select: Entity<SelectState<Vec<SharedString>>>,
     pub(super) environment_select: Entity<SelectState<Vec<SharedString>>>,

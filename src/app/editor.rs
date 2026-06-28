@@ -1,7 +1,7 @@
 use gpui::*;
 use gpui_component::WindowExt;
 
-use crate::domain::{format_body, format_request_url, BodyType, ResponseBody};
+use crate::domain::{format_body, format_request_url, BodyType, RequestProtocol, ResponseBody};
 
 use super::ui::{
     build_multipart_row_inputs, build_query_row_inputs, build_row_inputs,
@@ -43,15 +43,42 @@ impl LoomApp {
         cx: &mut Context<Self>,
     ) {
         let tab = self.tabs.get(self.active_tab).cloned();
-        let Some(tab) = tab else {
+        let Some(mut tab) = tab else {
             return;
         };
 
+        if tab.protocol == RequestProtocol::Grpc {
+            tab.body_type = BodyType::Json;
+            if let Some(active) = self.active_tab_mut() {
+                active.body_type = BodyType::Json;
+            }
+        }
+
         self.url_input.update(cx, |input, cx| {
-            input.set_value(format_request_url(&tab.url, &tab.query_params), window, cx);
+            let value = if tab.protocol == RequestProtocol::Grpc {
+                tab.url.clone()
+            } else {
+                format_request_url(&tab.url, &tab.query_params)
+            };
+            let placeholder = if tab.protocol == RequestProtocol::Grpc {
+                "localhost:50051"
+            } else {
+                "https://api.example.com/endpoint"
+            };
+            input.set_placeholder(placeholder, window, cx);
+            input.set_value(value, window, cx);
+        });
+        self.protocol_select.update(cx, |select, cx| {
+            select.set_selected_value(&tab.protocol.label(), window, cx);
         });
         self.method_select.update(cx, |select, cx| {
             select.set_selected_value(&tab.method.as_str(), window, cx);
+        });
+        self.grpc_service_input.update(cx, |input, cx| {
+            input.set_value(tab.grpc_service.clone(), window, cx);
+        });
+        self.grpc_method_input.update(cx, |input, cx| {
+            input.set_value(tab.grpc_method.clone(), window, cx);
         });
         self.body_type_select.update(cx, |select, cx| {
             select.set_selected_value(&tab.body_type.label(), window, cx);
@@ -133,11 +160,15 @@ impl LoomApp {
         let pre_request_script = self.pre_request_script_input.read(cx).value().to_string();
         let post_response_script = self.post_response_script_input.read(cx).value().to_string();
         let tests_script = self.tests_script_input.read(cx).value().to_string();
+        let grpc_service = self.grpc_service_input.read(cx).value().to_string();
+        let grpc_method = self.grpc_method_input.read(cx).value().to_string();
         if let Some(tab) = self.tabs.get_mut(self.active_tab) {
             tab.request_body = body;
             tab.pre_request_script = pre_request_script;
             tab.post_response_script = post_response_script;
             tab.tests_script = tests_script;
+            tab.grpc_service = grpc_service;
+            tab.grpc_method = grpc_method;
         }
     }
 

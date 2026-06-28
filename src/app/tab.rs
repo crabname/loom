@@ -1,6 +1,6 @@
 use crate::domain::{
     default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
-    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request,
+    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request, RequestProtocol,
     RequestTimingBreakdown, ResponseBody, ResponseBodyView, Variable,
 };
 
@@ -44,7 +44,10 @@ pub struct Tab {
     pub id: usize,
     pub title: String,
     pub source: Option<TabSource>,
+    pub protocol: RequestProtocol,
     pub url: String,
+    pub grpc_service: String,
+    pub grpc_method: String,
     pub method: HttpMethod,
     pub query_params: Vec<KeyValueField>,
     pub headers: Vec<KeyValueField>,
@@ -79,7 +82,10 @@ impl Tab {
             id,
             title: request.name.clone(),
             source,
+            protocol: request.protocol,
             url: request.url.clone(),
+            grpc_service: request.grpc_service.clone(),
+            grpc_method: request.grpc_method.clone(),
             method: request.method,
             query_params: request.query_params.clone(),
             headers: request.headers.clone(),
@@ -114,7 +120,10 @@ impl Tab {
             id,
             title: title.into(),
             source: None,
+            protocol: RequestProtocol::default(),
             url: String::new(),
+            grpc_service: String::new(),
+            grpc_method: String::new(),
             method: HttpMethod::Get,
             query_params: default_key_value_fields(),
             headers: default_key_value_fields(),
@@ -146,8 +155,11 @@ impl Tab {
 
     pub fn to_request(&self) -> Request {
         let mut request = Request::new(self.title.clone());
+        request.protocol = self.protocol;
         request.method = self.method;
         request.url = self.url.clone();
+        request.grpc_service = self.grpc_service.clone();
+        request.grpc_method = self.grpc_method.clone();
         request.query_params = self.query_params.clone();
         request.headers = self.headers.clone();
         request.body_type = self.body_type;

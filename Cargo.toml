@@ -21,6 +21,13 @@ reqwest = { version = "0.12", default-features = false, features = [
     "stream",
 ] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tonic = { version = "0.12", default-features = false, features = ["transport", "codegen"] }
+tonic-reflection = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+prost-reflect = { version = "0.14", features = ["serde"] }
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"

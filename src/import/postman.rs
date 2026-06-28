@@ -210,6 +210,8 @@ fn parse_postman_request_item(item: &Value, warnings: &mut Vec<String>) -> Resul
         protocol: RequestProtocol::Http,
         method: parsed.method,
         url: parsed.url,
+        grpc_service: String::new(),
+        grpc_method: String::new(),
         query_params: parsed.query_params,
         headers: parsed.headers,
         body_type: parsed.body_type,

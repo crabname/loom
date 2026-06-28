@@ -6,7 +6,7 @@ use gpui_component::{
     IndexPath,
 };
 
-use crate::domain::{BodyType, HttpMethod};
+use crate::domain::{BodyType, HttpMethod, RequestProtocol};
 use crate::storage::AppPaths;
 use std::collections::HashMap;
 
@@ -16,6 +16,7 @@ use super::variable_hover::{configure_variable_code_editor, configure_variable_i
 use super::{menus, LoomApp, Tab};
 
 pub(crate) const METHOD_LABELS: [&str; 5] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+pub(crate) const PROTOCOL_LABELS: [&str; 2] = ["HTTP", "gRPC"];
 pub(crate) const BODY_LABELS: [&str; 5] = ["none", "JSON", "XML", "form-urlencoded", "multipart"];
 
 impl LoomApp {
@@ -73,6 +74,35 @@ impl LoomApp {
                 window,
                 cx,
             )
+        });
+
+        let protocol_select = cx.new(|cx| {
+            let initial_index = match tab.protocol {
+                RequestProtocol::Http => IndexPath::default(),
+                RequestProtocol::Grpc => IndexPath::default().row(1),
+            };
+            SelectState::new(
+                PROTOCOL_LABELS.to_vec(),
+                Some(initial_index),
+                window,
+                cx,
+            )
+        });
+
+        let grpc_service_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("package.Service")
+                .default_value(tab.grpc_service.clone())
+        });
+
+        let grpc_method_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("Method")
+                .default_value(tab.grpc_method.clone())
+        });
+
+        let grpc_method_select = cx.new(|cx| {
+            SelectState::new(Vec::<SharedString>::new(), None, window, cx)
         });
 
         let body_type_select = cx.new(|cx| {
@@ -168,6 +198,11 @@ impl LoomApp {
             tests_script_input,
             response_body_input,
             method_select,
+            protocol_select,
+            grpc_service_input,
+            grpc_method_input,
+            grpc_method_select,
+            grpc_discovered_methods: Vec::new(),
             body_type_select,
             workspace_select,
             environment_select,
@@ -258,6 +293,62 @@ impl LoomApp {
                     tab.tests_script = script;
                 }
                 this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.protocol_select, window, {
+            move |this, _, event: &SelectEvent<Vec<&'static str>>, window, cx| {
+                let SelectEvent::Confirm(Some(value)) = event else {
+                    return;
+                };
+                if let Some(protocol) = RequestProtocol::from_label(value) {
+                    if let Some(tab) = this.active_tab_mut() {
+                        tab.protocol = protocol;
+                        if protocol == RequestProtocol::Grpc {
+                            tab.body_type = BodyType::Json;
+                        }
+                    }
+                    this.sync_active_tab_to_collection(cx);
+                    this.reload_active_tab_inputs(window, cx);
+                    cx.notify();
+                }
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.grpc_service_input, window, {
+            move |this, _, _: &InputEvent, _, cx| {
+                let value = this.grpc_service_input.read(cx).value().to_string();
+                if let Some(tab) = this.active_tab_mut() {
+                    tab.grpc_service = value;
+                }
+                this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.grpc_method_input, window, {
+            move |this, _, _: &InputEvent, _, cx| {
+                let value = this.grpc_method_input.read(cx).value().to_string();
+                if let Some(tab) = this.active_tab_mut() {
+                    tab.grpc_method = value;
+                }
+                this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.grpc_method_select, window, {
+            move |this, _, event: &SelectEvent<Vec<SharedString>>, window, cx| {
+                let SelectEvent::Confirm(Some(label)) = event else {
+                    return;
+                };
+                let method = this
+                    .grpc_discovered_methods
+                    .iter()
+                    .find(|method| method.label() == label.as_ref())
+                    .cloned();
+                if let Some(method) = method {
+                    this.apply_discovered_grpc_method(&method, window, cx);
+                    cx.notify();
+                }
             }
         }));
 

@@ -10,6 +10,23 @@ pub enum RequestProtocol {
     Grpc,
 }
 
+impl RequestProtocol {
+    pub const ALL: [Self; 2] = [Self::Http, Self::Grpc];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Http => "HTTP",
+            Self::Grpc => "gRPC",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|protocol| protocol.label().eq_ignore_ascii_case(label))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BodyType {
     None,
@@ -84,6 +101,8 @@ impl Request {
             protocol: RequestProtocol::default(),
             method: HttpMethod::Get,
             url: String::new(),
+            grpc_service: String::new(),
+            grpc_method: String::new(),
             query_params: default_key_value_fields(),
             headers: default_key_value_fields(),
             body_type: BodyType::None,
@@ -105,6 +124,8 @@ pub struct Request {
     pub protocol: RequestProtocol,
     pub method: HttpMethod,
     pub url: String,
+    pub grpc_service: String,
+    pub grpc_method: String,
     pub query_params: Vec<KeyValueField>,
     pub headers: Vec<KeyValueField>,
     pub body_type: BodyType,

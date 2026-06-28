@@ -2,6 +2,7 @@ use gpui::*;
 
 use crate::domain::{
     ensure_trailing_empty_row, format_request_url, query_params_equal, split_query_params,
+    RequestProtocol,
 };
 
 use super::LoomApp;
@@ -65,12 +66,21 @@ impl LoomApp {
         self.flush_field_inputs(cx);
 
         let full_url = self.url_input.read(cx).value().to_string();
-        let (base, mut parsed) = split_query_params(&full_url);
-        ensure_trailing_empty_row(&mut parsed);
-
         let Some(tab) = self.active_tab_mut() else {
             return;
         };
+
+        if tab.protocol == RequestProtocol::Grpc {
+            if tab.url != full_url {
+                tab.url = full_url;
+                self.sync_active_tab_to_collection(cx);
+                cx.notify();
+            }
+            return;
+        }
+
+        let (base, mut parsed) = split_query_params(&full_url);
+        ensure_trailing_empty_row(&mut parsed);
 
         let base_changed = tab.url != base;
         let params_changed = !query_params_equal(&tab.query_params, &parsed);
@@ -91,9 +101,13 @@ impl LoomApp {
         }
 
         let full_url = self.url_input.read(cx).value().to_string();
-        let (base, mut parsed) = split_query_params(&full_url);
-        ensure_trailing_empty_row(&mut parsed);
         if let Some(tab) = self.tabs.get_mut(self.active_tab) {
+            if tab.protocol == RequestProtocol::Grpc {
+                tab.url = full_url;
+                return;
+            }
+            let (base, mut parsed) = split_query_params(&full_url);
+            ensure_trailing_empty_row(&mut parsed);
             tab.url = base;
             tab.query_params = parsed;
         }

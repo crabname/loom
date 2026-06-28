@@ -74,6 +74,10 @@ pub struct RequestFile {
     #[serde(default)]
     pub url: String,
     #[serde(default)]
+    pub grpc_service: String,
+    #[serde(default)]
+    pub grpc_method: String,
+    #[serde(default)]
     pub query_params: Vec<FieldFile>,
     #[serde(default)]
     pub headers: Vec<FieldFile>,
@@ -261,6 +265,8 @@ impl From<RequestFile> for Request {
             protocol: value.protocol.into(),
             method: value.method.into(),
             url: value.url,
+            grpc_service: value.grpc_service,
+            grpc_method: value.grpc_method,
             query_params: normalize_fields(value.query_params.into_iter().map(Into::into).collect()),
             headers: normalize_fields(value.headers.into_iter().map(Into::into).collect()),
             body_type: value.body_type.into(),
@@ -476,6 +482,8 @@ impl From<&Request> for RequestFile {
             protocol: value.protocol.into(),
             method: value.method.into(),
             url: value.url.clone(),
+            grpc_service: value.grpc_service.clone(),
+            grpc_method: value.grpc_method.clone(),
             query_params: serializable_fields(&value.query_params),
             headers: serializable_fields(&value.headers),
             body_type: value.body_type.into(),

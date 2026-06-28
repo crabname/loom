@@ -410,6 +410,8 @@ fn parse_request_document(doc: &YamlValue, warnings: &mut Vec<String>) -> Result
         protocol: RequestProtocol::Http,
         method: parse_http_method(method, warnings, "request"),
         url,
+        grpc_service: String::new(),
+        grpc_method: String::new(),
         query_params: oc_params_to_domain(&params, warnings),
         headers: oc_headers_to_domain(&headers, warnings, "request"),
         body_type,
