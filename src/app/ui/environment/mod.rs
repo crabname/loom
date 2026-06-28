@@ -9,7 +9,8 @@ use gpui_component::{
     dialog::{DialogAction, DialogButtonProps, DialogClose, DialogFooter},
     h_flex,
     select::Select,
-    IconName, Sizable as _, WindowExt as _,
+    tooltip::Tooltip,
+    ActiveTheme as _, Icon, IconName, Sizable as _, WindowExt as _,
 };
 
 use crate::domain::Variable;
@@ -24,9 +25,31 @@ impl ApiHelperApp {
             .items_center()
             .child(
                 div()
-                    .w(px(200.))
+                    .id("environment-select")
                     .min_w_0()
-                    .child(Select::new(&self.environment_select)),
+                    .max_w(px(220.))
+                    .flex_shrink_0()
+                    .tooltip(|window, cx| {
+                        Tooltip::new("Active environment for variable substitution")
+                            .build(window, cx)
+                    })
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .min_w_0()
+                            .child(
+                                Icon::new(IconName::Globe)
+                                    .xsmall()
+                                    .text_color(cx.theme().muted_foreground),
+                            )
+                            .child(
+                                Select::new(&self.environment_select)
+                                    .appearance(false)
+                                    .small()
+                                    .placeholder("No environment"),
+                            ),
+                    ),
             )
             .child(
                 Button::new("environment-manage")

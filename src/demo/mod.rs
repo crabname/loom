@@ -4,7 +4,7 @@ use crate::domain::{
 };
 
 pub fn demo_workspaces() -> Vec<Workspace> {
-    let mut environment = Environment::new("JSONPlaceholder");
+    let mut environment = Environment::new("demoenv");
     environment.variables = vec![
         Variable::from_strings(
             "baseUrl".into(),

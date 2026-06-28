@@ -15,7 +15,7 @@ use crate::transport::{block_on, send_http_request, HttpRequestBody, HttpRequest
 use super::ApiHelperApp;
 
 impl ApiHelperApp {
-    fn active_environment_variables(&self) -> Option<&[Variable]> {
+    pub(super) fn active_environment_variables(&self) -> Option<&[Variable]> {
         let environment_ref = self.active_environment?;
         let workspace = self.workspaces.get(self.active_workspace)?;
 
@@ -82,10 +82,10 @@ impl ApiHelperApp {
             self.runtime_vars = result.runtime_vars.clone();
         }
 
-        if result.env_dirty {
-            if let Some(variables) = self.active_environment_variables_mut() {
-                *variables = map_to_variables(&result.env_vars);
-            }
+        if result.env_dirty
+            && let Some(variables) = self.active_environment_variables_mut()
+        {
+            *variables = map_to_variables(&result.env_vars);
         }
     }
 
@@ -292,6 +292,7 @@ impl ApiHelperApp {
         let _ = window;
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn finish_request(
         &mut self,
         tab_id: usize,
@@ -334,24 +335,24 @@ impl ApiHelperApp {
             }
         }
 
-        if !post_response_script.trim().is_empty() {
-            if let Some(response) = response_for_script {
-                let script_started = std::time::Instant::now();
-                let host_state = self.build_script_host_state();
-                match run_post_response_script(
-                    &post_response_script,
-                    host_state,
-                    &response,
-                    request_url,
-                ) {
-                    Ok(script_result) => self.apply_script_result_for_tab(tab_id, &script_result),
-                    Err(error) => {
-                        self.tabs[tab_index].response_error =
-                            Some(format!("Post-response script error: {error}"));
-                    }
+        if !post_response_script.trim().is_empty()
+            && let Some(response) = response_for_script
+        {
+            let script_started = std::time::Instant::now();
+            let host_state = self.build_script_host_state();
+            match run_post_response_script(
+                &post_response_script,
+                host_state,
+                &response,
+                request_url,
+            ) {
+                Ok(script_result) => self.apply_script_result_for_tab(tab_id, &script_result),
+                Err(error) => {
+                    self.tabs[tab_index].response_error =
+                        Some(format!("Post-response script error: {error}"));
                 }
-                timing.post_response_script_ms = script_started.elapsed().as_millis();
             }
+            timing.post_response_script_ms = script_started.elapsed().as_millis();
         }
 
         let tab = &mut self.tabs[tab_index];

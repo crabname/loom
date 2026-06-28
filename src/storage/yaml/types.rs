@@ -103,6 +103,7 @@ pub enum ProtocolFile {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "UPPERCASE")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum MethodFile {
     GET,
     POST,

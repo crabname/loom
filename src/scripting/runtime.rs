@@ -42,7 +42,7 @@ pub fn run_script(
     let source = Source::from_bytes(trimmed.as_bytes());
     let result = context
         .eval(source)
-        .map_err(|error| format_script_error(error));
+        .map_err(format_script_error);
 
     match result {
         Ok(_) => Ok(ScriptResult::from_handle(

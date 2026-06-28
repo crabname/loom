@@ -13,6 +13,7 @@ impl EntityId {
         Self(Uuid::new_v4())
     }
 
+    #[allow(dead_code)]
     pub fn parse(value: &str) -> Option<Self> {
         Uuid::parse_str(value).ok().map(Self)
     }
@@ -38,6 +39,7 @@ impl FromStr for EntityId {
     }
 }
 
+#[allow(dead_code)]
 pub fn is_entity_id(value: &str) -> bool {
     EntityId::parse(value).is_some()
 }

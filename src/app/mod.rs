@@ -11,6 +11,7 @@ mod tab;
 mod tab_actions;
 mod ui;
 mod url_sync;
+mod variable_hover;
 mod workspace;
 mod workspace_binding;
 mod workspace_storage;
@@ -70,5 +71,6 @@ pub struct ApiHelperApp {
     pub(super) query_param_subscriptions: Vec<Subscription>,
 
     pub(super) collections_tree: Entity<TreeState>,
+    pub(super) variable_hover: std::rc::Rc<variable_hover::VariableHoverProvider>,
     pub(super) _subscriptions: Vec<Subscription>,
 }

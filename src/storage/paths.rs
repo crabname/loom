@@ -6,6 +6,7 @@ use super::local::slugify;
 const APP_DIR_NAME: &str = "api-helper";
 
 pub struct AppPaths {
+    #[allow(dead_code)]
     pub root: PathBuf,
     pub app_state: PathBuf,
     pub local_workspaces: PathBuf,

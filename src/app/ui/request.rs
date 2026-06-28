@@ -62,7 +62,11 @@ impl ApiHelperApp {
                             .items_center()
                             .gap_2()
                             .child(div().flex_1().text_sm().child("Body"))
-                            .child(Select::new(&self.body_type_select).w(px(180.)));
+                            .child(
+                                Select::new(&self.body_type_select)
+                                    .appearance(false)
+                                    .small(),
+                            );
 
                         if matches!(body_type, BodyType::Json | BodyType::Xml) {
                             header = header.child(

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use super::startup::{first_open_request, load_startup_workspaces};
 use super::ui::build_collection_tree_items;
+use super::variable_hover::{configure_variable_code_editor, configure_variable_input, VariableHoverProvider};
 use super::{menus, ApiHelperApp, Tab};
 
 pub(crate) const METHOD_LABELS: [&str; 5] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
@@ -82,19 +83,23 @@ impl ApiHelperApp {
             )
         });
 
+        let variable_hover = VariableHoverProvider::new();
+
         let url_input = cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("https://api.example.com/endpoint")
-                .default_value(tab.url.clone())
+            configure_variable_input(
+                InputState::new(window, cx)
+                    .placeholder("https://api.example.com/endpoint")
+                    .default_value(tab.url.clone()),
+                variable_hover.clone(),
+            )
         });
 
         let body_input = cx.new(|cx| {
-            InputState::new(window, cx)
-                .multi_line(true)
-                .rows(12)
-                .code_editor("json")
-                .searchable(true)
-                .default_value(tab.request_body.clone())
+            configure_variable_code_editor(
+                InputState::new(window, cx).default_value(tab.request_body.clone()),
+                variable_hover.clone(),
+                "json",
+            )
         });
 
         let pre_request_script_input = cx.new(|cx| {
@@ -166,9 +171,11 @@ impl ApiHelperApp {
             autosave_debounce_seq: 0,
             query_param_subscriptions: Vec::new(),
             collections_tree,
+            variable_hover,
             _subscriptions: Vec::new(),
         };
 
+        app.variable_hover.attach(&cx.entity());
         app.wire_global_subscriptions(window, cx);
         app.wire_tree_subscription(cx);
         app.wire_workspace_subscription(window, cx);

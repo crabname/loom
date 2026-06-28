@@ -9,8 +9,8 @@ mod tab_bar;
 mod url_bar;
 
 pub(crate) use fields::{
-    build_multipart_row_inputs, build_row_inputs, flush_multipart_rows, flush_rows, FieldTable,
-    MultipartRowInputs, RowInputs,
+    build_multipart_row_inputs, build_query_row_inputs, build_row_inputs, flush_multipart_rows,
+    flush_rows, FieldTable, MultipartRowInputs, RowInputs,
 };
 pub(crate) use environment::{build_variable_row_inputs, flush_environment_variables};
 pub(crate) use sidebar::{

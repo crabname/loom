@@ -1,5 +1,5 @@
 use super::{
-    default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
+    default_form_fields, default_multipart_fields,
     format_request_url, split_query_params, BodyType, FormField, HttpMethod, KeyValueField,
     MultipartField, MultipartFieldType, Request, RequestProtocol,
 };

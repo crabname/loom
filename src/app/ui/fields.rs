@@ -12,6 +12,7 @@ use gpui_component::{
 
 use crate::domain::{KeyValueField, MultipartField, MultipartFieldType};
 
+use crate::app::variable_hover::{configure_variable_input, VariableHoverProvider};
 use super::ApiHelperApp;
 
 #[derive(Clone)]
@@ -372,6 +373,25 @@ pub(crate) fn build_row_inputs<T: RowField>(
         fields,
         |field| field.name_for_row(),
         |field| field.value_for_row(),
+        None,
+        false,
+    )
+}
+
+pub(crate) fn build_query_row_inputs<T: RowField>(
+    window: &mut Window,
+    cx: &mut Context<ApiHelperApp>,
+    fields: &[T],
+    variable_hover: std::rc::Rc<VariableHoverProvider>,
+) -> Vec<RowInputs> {
+    build_row_inputs_from(
+        window,
+        cx,
+        fields,
+        |field| field.name_for_row(),
+        |field| field.value_for_row(),
+        Some(variable_hover),
+        true,
     )
 }
 
@@ -381,6 +401,8 @@ pub(crate) fn build_row_inputs_from<T>(
     fields: &[T],
     name_for_row: impl Fn(&T) -> String,
     value_for_row: impl Fn(&T) -> String,
+    variable_hover: Option<std::rc::Rc<VariableHoverProvider>>,
+    variable_hover_on_value: bool,
 ) -> Vec<RowInputs> {
     fields
         .iter()
@@ -391,9 +413,15 @@ pub(crate) fn build_row_inputs_from<T>(
                     .default_value(name_for_row(field))
             });
             let value = cx.new(|cx| {
-                InputState::new(window, cx)
+                let input = InputState::new(window, cx)
                     .placeholder("Value")
-                    .default_value(value_for_row(field))
+                    .default_value(value_for_row(field));
+                if variable_hover_on_value
+                    && let Some(provider) = variable_hover.clone()
+                {
+                    return configure_variable_input(input, provider);
+                }
+                input
             });
             RowInputs { name, value }
         })

@@ -10,6 +10,7 @@ pub use local::{
 };
 pub use paths::AppPaths;
 
+#[allow(dead_code)]
 pub trait StorageProvider {
     fn load_workspace(&self, path: &std::path::Path) -> Result<LoadedWorkspace, String>;
 

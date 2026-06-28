@@ -188,6 +188,7 @@ dependencies = [
  "gpui-component",
  "gpui-component-assets",
  "gpui_platform",
+ "lsp-types",
  "reqwest",
  "serde",
  "serde_json",

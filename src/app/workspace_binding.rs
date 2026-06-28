@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 pub enum WorkspaceBinding {
     Ephemeral,
     Local(PathBuf),
+    #[allow(dead_code)]
     Cloud(CloudWorkspaceBinding),
 }
 
@@ -15,6 +16,7 @@ pub struct CloudWorkspaceBinding {
 }
 
 impl WorkspaceBinding {
+    #[allow(dead_code)]
     pub fn is_persisted(&self) -> bool {
         !matches!(self, Self::Ephemeral)
     }

@@ -14,6 +14,7 @@ use crate::transport::HttpResponse;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptPhase {
+    #[allow(dead_code)]
     PreRequest,
     PostResponse,
 }

@@ -146,9 +146,9 @@ impl Render for EnvironmentsManagerPanel {
             );
         }
 
-        if self.tab.is_environment() && has_selection {
-            editor = editor.child(self.render_variable_editor(cx));
-        } else if !self.tab.is_environment() && folder_vars_available {
+        if (self.tab.is_environment() && has_selection)
+            || (!self.tab.is_environment() && folder_vars_available)
+        {
             editor = editor.child(self.render_variable_editor(cx));
         } else if matches!(self.tab, EnvironmentManagerTab::FolderVars) {
             editor = editor.child(

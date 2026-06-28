@@ -10,6 +10,14 @@ use crate::domain::{Environment, Variable};
 use crate::app::ui::fields::RowInputs;
 use super::super::variables::{build_variable_row_inputs, flush_environment_variables};
 
+type EnvironmentManagerState = (
+    Vec<Environment>,
+    Vec<Vec<Environment>>,
+    Vec<Variable>,
+    Vec<Vec<Variable>>,
+    Vec<Vec<Vec<Variable>>>,
+);
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum EnvironmentManagerTab {
     WorkspaceEnv,
@@ -53,6 +61,7 @@ pub(crate) struct EnvironmentsManagerPanel {
 }
 
 impl EnvironmentsManagerPanel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         window: &mut Window,
         cx: &mut App,
@@ -451,16 +460,7 @@ impl EnvironmentsManagerPanel {
         cx.notify();
     }
 
-    pub(crate) fn take_state(
-        &mut self,
-        cx: &App,
-    ) -> (
-        Vec<Environment>,
-        Vec<Vec<Environment>>,
-        Vec<Variable>,
-        Vec<Vec<Variable>>,
-        Vec<Vec<Vec<Variable>>>,
-    ) {
+    pub(crate) fn take_state(&mut self, cx: &App) -> EnvironmentManagerState {
         self.flush_selected(cx);
         (
             std::mem::take(&mut self.workspace_environments),

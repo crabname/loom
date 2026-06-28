@@ -49,11 +49,7 @@ impl ApiHelperApp {
     }
 
     pub(super) fn default_environment_ref(&self) -> Option<EnvironmentRef> {
-        if self.workspaces[self.active_workspace]
-            .environments
-            .first()
-            .is_some()
-        {
+        if !self.workspaces[self.active_workspace].environments.is_empty() {
             return Some(EnvironmentRef {
                 scope: EnvironmentScope::Workspace,
                 index: 0,
@@ -65,7 +61,7 @@ impl ApiHelperApp {
             .iter()
             .enumerate()
         {
-            if collection.environments.first().is_some() {
+            if !collection.environments.is_empty() {
                 return Some(EnvironmentRef {
                     scope: EnvironmentScope::Collection(collection_index),
                     index: 0,
@@ -174,6 +170,7 @@ impl ApiHelperApp {
         cx.notify();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn apply_environments_manager(
         &mut self,
         workspace_environments: Vec<Environment>,

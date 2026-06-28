@@ -150,16 +150,18 @@ impl ApiHelperApp {
             .cloned();
         let active_tab_id = self.tabs.get(self.active_tab).map(|tab| tab.id);
 
-        if let Some(EnvironmentRef { scope, index }) = self.active_environment {
-            if let EnvironmentScope::Collection(collection_index) = scope {
-                if collection_index == collection {
-                    self.active_environment = None;
-                } else if collection_index > collection {
-                    self.active_environment = Some(EnvironmentRef {
-                        scope: EnvironmentScope::Collection(collection_index - 1),
-                        index,
-                    });
-                }
+        if let Some(EnvironmentRef {
+            scope: EnvironmentScope::Collection(collection_index),
+            index,
+        }) = self.active_environment
+        {
+            if collection_index == collection {
+                self.active_environment = None;
+            } else if collection_index > collection {
+                self.active_environment = Some(EnvironmentRef {
+                    scope: EnvironmentScope::Collection(collection_index - 1),
+                    index,
+                });
             }
         }
 
@@ -364,12 +366,10 @@ impl ApiHelperApp {
             if let Some(source) = &mut tab.source
                 && source.workspace == self.active_workspace
                 && source.collection == collection
+                && let Some(folder_index) = source.folder
+                && folder_index > folder
             {
-                if let Some(folder_index) = source.folder
-                    && folder_index > folder
-                {
-                    source.folder = Some(folder_index - 1);
-                }
+                source.folder = Some(folder_index - 1);
             }
         }
 

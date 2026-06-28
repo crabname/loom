@@ -24,8 +24,7 @@ pub use request::{Collection, CollectionFolder, Request, RequestProtocol, BodyTy
 pub use response::*;
 pub use timing::{HttpTiming, RequestTimingBreakdown};
 pub use variable::{
-    build_variable_pool, default_variables, substitute_form_fields, substitute_key_value_fields,
-    substitute_multipart_fields, substitute_request, substitute_variables, Variable,
-    VariableLayers,
+    build_variable_pool, default_variables, format_variable_hover, resolve_variable_source,
+    substitute_request, variable_at_offset, Variable, VariableLayers, VariableResolveLabels,
 };
 pub use workspace::Workspace;

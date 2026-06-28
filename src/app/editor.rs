@@ -1,11 +1,11 @@
 use gpui::*;
 use gpui_component::WindowExt;
 
-use crate::domain::{format_body, format_request_url, ResponseBody};
+use crate::domain::{format_body, format_request_url, BodyType, ResponseBody};
 
 use super::ui::{
-    build_multipart_row_inputs, build_row_inputs, build_variable_row_inputs,
-    flush_environment_variables, flush_multipart_rows, flush_rows,
+    build_multipart_row_inputs, build_query_row_inputs, build_row_inputs,
+    build_variable_row_inputs, flush_environment_variables, flush_multipart_rows, flush_rows,
 };
 use super::ApiHelperApp;
 
@@ -28,7 +28,8 @@ impl ApiHelperApp {
             return;
         };
 
-        self.query_inputs = build_row_inputs(window, cx, &tab.query_params);
+        self.query_inputs =
+            build_query_row_inputs(window, cx, &tab.query_params, self.variable_hover.clone());
         self.header_inputs = build_row_inputs(window, cx, &tab.headers);
         self.form_inputs = build_row_inputs(window, cx, &tab.form_fields);
         self.multipart_inputs = build_multipart_row_inputs(window, cx, &tab.multipart_fields);
@@ -92,6 +93,12 @@ impl ApiHelperApp {
         };
 
         self.body_input.update(cx, |input, cx| {
+            let language = match tab.body_type {
+                BodyType::Xml => "xml",
+                BodyType::Json => "json",
+                _ => "json",
+            };
+            input.set_highlighter(language, cx);
             input.set_value(tab.request_body.clone(), window, cx);
         });
     }
