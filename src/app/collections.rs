@@ -1,7 +1,7 @@
 use gpui::*;
 use gpui_component::tree::{TreeEvent, TreeItem};
 
-use crate::domain::{Collection, CollectionFolder, EnvironmentRef, EnvironmentScope, Request};
+use crate::domain::{Collection, CollectionFolder, EnvironmentRef, EnvironmentScope, Request, Variable};
 use crate::storage::{default_collection_paths, remove_collection_dir, remove_folder_dir};
 
 use super::ui::{
@@ -484,6 +484,41 @@ impl LoomApp {
         }
 
         self.refresh_collections_tree(cx);
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
+    pub(super) fn apply_collection_variables(
+        &mut self,
+        collection_index: usize,
+        variables: Vec<Variable>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(collection) = self.active_collections_mut().get_mut(collection_index) else {
+            return;
+        };
+
+        collection.variables = variables;
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
+    pub(super) fn apply_folder_variables(
+        &mut self,
+        collection_index: usize,
+        folder_index: usize,
+        variables: Vec<Variable>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(folder) = self
+            .active_collections_mut()
+            .get_mut(collection_index)
+            .and_then(|collection| collection.folders.get_mut(folder_index))
+        else {
+            return;
+        };
+
+        folder.variables = variables;
         self.autosave_active_workspace(cx);
         cx.notify();
     }

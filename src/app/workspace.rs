@@ -170,40 +170,36 @@ impl LoomApp {
         cx.notify();
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn apply_environments_manager(
         &mut self,
         workspace_environments: Vec<Environment>,
         collection_environments: Vec<Vec<Environment>>,
-        workspace_variables: Vec<Variable>,
-        collection_variables: Vec<Vec<Variable>>,
-        folder_variables: Vec<Vec<Vec<Variable>>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let workspace = &mut self.workspaces[self.active_workspace];
         workspace.environments = workspace_environments;
-        workspace.variables = workspace_variables;
 
-        for (collection, ((environments, variables), folders)) in workspace
+        for (collection, environments) in workspace
             .collections
             .iter_mut()
-            .zip(
-                collection_environments
-                    .into_iter()
-                    .zip(collection_variables)
-                    .zip(folder_variables),
-            )
+            .zip(collection_environments)
         {
             collection.environments = environments;
-            collection.variables = variables;
-            for (folder, variables) in collection.folders.iter_mut().zip(folders) {
-                folder.variables = variables;
-            }
         }
 
         self.reconcile_active_environment();
         self.refresh_environment_select(window, cx);
+        self.autosave_active_workspace(cx);
+        cx.notify();
+    }
+
+    pub(super) fn apply_workspace_variables(
+        &mut self,
+        variables: Vec<Variable>,
+        cx: &mut Context<Self>,
+    ) {
+        self.workspaces[self.active_workspace].variables = variables;
         self.autosave_active_workspace(cx);
         cx.notify();
     }

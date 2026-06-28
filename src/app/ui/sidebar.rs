@@ -156,11 +156,26 @@ impl LoomApp {
                     .size_full()
                     .min_h_0()
                     .child(
-                        div()
+                        h_flex()
                             .flex_shrink_0()
-                            .text_sm()
-                            .font_semibold()
-                            .child("Workspace"),
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_semibold()
+                                    .child("Workspace"),
+                            )
+                            .child(
+                                Button::new("workspace-variables")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Variables")
+                                    .tooltip("Workspace variables")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.open_workspace_variables_dialog(window, cx);
+                                    })),
+                            ),
                     )
                     .child(
                         div()
@@ -455,6 +470,7 @@ impl LoomApp {
                                     let view_for_folder = view.clone();
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
+                                    let view_for_variables = view.clone();
                                     let view_for_delete = view.clone();
                                     return menu
                                         .item(
@@ -466,6 +482,19 @@ impl LoomApp {
                                                             RenameTarget::Collection {
                                                                 collection: collection_index,
                                                             },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Variables")
+                                                .icon(IconName::Inbox)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_variables.update(cx, |this, cx| {
+                                                        this.open_collection_variables_dialog(
+                                                            collection_index,
                                                             window,
                                                             cx,
                                                         );
@@ -536,6 +565,7 @@ impl LoomApp {
                                     let view_for_rename = view.clone();
                                     let view_for_new = view.clone();
                                     let view_for_import = view.clone();
+                                    let view_for_variables = view.clone();
                                     let view_for_delete = view.clone();
                                     return menu
                                         .item(
@@ -548,6 +578,20 @@ impl LoomApp {
                                                                 collection: collection_index,
                                                                 folder: folder_index,
                                                             },
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                }),
+                                        )
+                                        .item(
+                                            PopupMenuItem::new("Variables")
+                                                .icon(IconName::Folder)
+                                                .on_click(move |_, window, cx| {
+                                                    view_for_variables.update(cx, |this, cx| {
+                                                        this.open_folder_variables_dialog(
+                                                            collection_index,
+                                                            folder_index,
                                                             window,
                                                             cx,
                                                         );
