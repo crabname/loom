@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+
+use serde_json::Value;
+
 use crate::domain::{
     default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
     BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request, RequestProtocol,
-    ResponseBody, ResponseBodyView, Variable,
+    RequestTimingBreakdown, ResponseBody, ResponseBodyView, Variable,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +20,13 @@ pub enum RequestPanelTab {
     Headers,
     Body,
     Vars,
+    Script,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestScriptSubTab {
+    PreRequest,
+    PostResponse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,6 +42,7 @@ pub struct WorkspaceSession {
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
     pub active_environment: Option<crate::domain::EnvironmentRef>,
+    pub runtime_vars: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,11 +55,14 @@ pub struct Tab {
     pub query_params: Vec<KeyValueField>,
     pub headers: Vec<KeyValueField>,
     pub request_panel_tab: RequestPanelTab,
+    pub request_script_sub_tab: RequestScriptSubTab,
     pub body_type: BodyType,
     pub request_body: String,
     pub form_fields: Vec<FormField>,
     pub multipart_fields: Vec<MultipartField>,
     pub variables: Vec<Variable>,
+    pub pre_request_script: String,
+    pub post_response_script: String,
     pub response_panel_tab: ResponsePanelTab,
     pub response_body: ResponseBody,
     pub response_body_view: ResponseBodyView,
@@ -55,6 +70,7 @@ pub struct Tab {
     pub response_http_status: Option<u16>,
     pub response_status_text: Option<String>,
     pub response_elapsed_ms: Option<u128>,
+    pub response_timing: Option<RequestTimingBreakdown>,
     pub response_size_bytes: Option<usize>,
     pub response_error: Option<String>,
     pub loading: bool,
@@ -71,11 +87,14 @@ impl Tab {
             query_params: request.query_params.clone(),
             headers: request.headers.clone(),
             request_panel_tab: RequestPanelTab::Body,
+            request_script_sub_tab: RequestScriptSubTab::PreRequest,
             body_type: request.body_type,
             request_body: request.body.clone(),
             form_fields: request.form_fields.clone(),
             multipart_fields: request.multipart_fields.clone(),
             variables: request.variables.clone(),
+            pre_request_script: request.pre_request_script.clone(),
+            post_response_script: request.post_response_script.clone(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
@@ -83,6 +102,7 @@ impl Tab {
             response_http_status: None,
             response_status_text: None,
             response_elapsed_ms: None,
+            response_timing: None,
             response_size_bytes: None,
             response_error: None,
             loading: false,
@@ -99,11 +119,14 @@ impl Tab {
             query_params: default_key_value_fields(),
             headers: default_key_value_fields(),
             request_panel_tab: RequestPanelTab::Body,
+            request_script_sub_tab: RequestScriptSubTab::PreRequest,
             body_type: BodyType::None,
             request_body: String::new(),
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             variables: default_variables(),
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
             response_panel_tab: ResponsePanelTab::Body,
             response_body: ResponseBody::empty(),
             response_body_view: ResponseBodyView::Raw,
@@ -111,6 +134,7 @@ impl Tab {
             response_http_status: None,
             response_status_text: None,
             response_elapsed_ms: None,
+            response_timing: None,
             response_size_bytes: None,
             response_error: None,
             loading: false,
@@ -130,6 +154,8 @@ impl Tab {
             form_fields: self.form_fields.clone(),
             multipart_fields: self.multipart_fields.clone(),
             variables: self.variables.clone(),
+            pre_request_script: self.pre_request_script.clone(),
+            post_response_script: self.post_response_script.clone(),
         }
     }
 }

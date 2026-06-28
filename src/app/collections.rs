@@ -95,6 +95,8 @@ impl ApiHelperApp {
             request.form_fields = tab.form_fields;
             request.multipart_fields = tab.multipart_fields;
             request.variables = tab.variables;
+            request.pre_request_script = tab.pre_request_script.clone();
+            request.post_response_script = tab.post_response_script.clone();
         }
 
         let _ = cx;

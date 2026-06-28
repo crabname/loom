@@ -76,6 +76,8 @@ fn demo_api_collection() -> Collection {
                 form_fields: default_form_fields(),
                 multipart_fields: default_multipart_fields(),
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
         ],
         folders: vec![super::CollectionFolder {
@@ -105,6 +107,8 @@ fn demo_api_collection() -> Collection {
                 form_fields: default_form_fields(),
                 multipart_fields: default_multipart_fields(),
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
             Request {
                 name: "Create Post".into(),
@@ -135,6 +139,8 @@ fn demo_api_collection() -> Collection {
                 form_fields: default_form_fields(),
                 multipart_fields: default_multipart_fields(),
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
             ],
         }],
@@ -167,6 +173,8 @@ fn local_collection() -> Collection {
                 form_fields: default_form_fields(),
                 multipart_fields: default_multipart_fields(),
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
             Request {
                 name: "Parse Board".into(),
@@ -189,6 +197,8 @@ fn local_collection() -> Collection {
                     MultipartField::empty(),
                 ],
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
             Request {
                 name: "List Services".into(),
@@ -202,6 +212,8 @@ fn local_collection() -> Collection {
                 form_fields: default_form_fields(),
                 multipart_fields: default_multipart_fields(),
                 variables: default_variables(),
+                pre_request_script: String::new(),
+                post_response_script: String::new(),
             },
         ],
     }

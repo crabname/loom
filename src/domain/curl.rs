@@ -204,6 +204,8 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
                     form_fields,
                     multipart_fields: default_multipart_fields(),
                     variables: default_variables(),
+                    pre_request_script: String::new(),
+                    post_response_script: String::new(),
                 });
             }
             _ => BodyType::Json,
@@ -223,6 +225,8 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
         form_fields,
         multipart_fields,
         variables: default_variables(),
+        pre_request_script: String::new(),
+        post_response_script: String::new(),
     })
 }
 
@@ -399,6 +403,8 @@ mod tests {
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             variables: default_variables(),
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
         };
 
         let curl = request_to_curl(&request).unwrap();
@@ -425,6 +431,8 @@ mod tests {
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             variables: default_variables(),
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
         };
 
         let curl = request_to_curl(&request).unwrap();
@@ -498,6 +506,8 @@ mod tests {
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             variables: default_variables(),
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
         };
 
         let curl = request_to_curl(&request).unwrap();

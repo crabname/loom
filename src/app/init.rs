@@ -9,6 +9,7 @@ use gpui_component::{
 use crate::domain::{
     demo_workspaces, BodyType, EnvironmentRef, EnvironmentScope, HttpMethod,
 };
+use std::collections::HashMap;
 
 use super::ui::build_collection_tree_items;
 use super::{ApiHelperApp, Tab, TabSource};
@@ -85,6 +86,26 @@ impl ApiHelperApp {
                 .default_value(tab.request_body.clone())
         });
 
+        let pre_request_script_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .multi_line(true)
+                .rows(12)
+                .code_editor("javascript")
+                .searchable(true)
+                .placeholder("// Runs before the request is sent")
+                .default_value(tab.pre_request_script.clone())
+        });
+
+        let post_response_script_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .multi_line(true)
+                .rows(12)
+                .code_editor("javascript")
+                .searchable(true)
+                .placeholder("// Runs after the response is received")
+                .default_value(tab.post_response_script.clone())
+        });
+
         let response_body_input = cx.new(|cx| {
             InputState::new(window, cx)
                 .multi_line(true)
@@ -110,6 +131,8 @@ impl ApiHelperApp {
             next_tab_id: 1,
             url_input,
             body_input,
+            pre_request_script_input,
+            post_response_script_input,
             response_body_input,
             method_select,
             body_type_select,
@@ -119,6 +142,7 @@ impl ApiHelperApp {
                 scope: EnvironmentScope::Workspace,
                 index: 0,
             }),
+            runtime_vars: HashMap::new(),
             query_inputs: Vec::new(),
             header_inputs: Vec::new(),
             form_inputs: Vec::new(),
@@ -158,6 +182,26 @@ impl ApiHelperApp {
                 let body = this.body_input.read(cx).value().to_string();
                 if let Some(tab) = this.active_tab_mut() {
                     tab.request_body = body;
+                }
+                this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.pre_request_script_input, window, {
+            move |this, _, _: &InputEvent, _, cx| {
+                let script = this.pre_request_script_input.read(cx).value().to_string();
+                if let Some(tab) = this.active_tab_mut() {
+                    tab.pre_request_script = script;
+                }
+                this.sync_active_tab_to_collection(cx);
+            }
+        }));
+
+        self._subscriptions.push(cx.subscribe_in(&self.post_response_script_input, window, {
+            move |this, _, _: &InputEvent, _, cx| {
+                let script = this.post_response_script_input.read(cx).value().to_string();
+                if let Some(tab) = this.active_tab_mut() {
+                    tab.post_response_script = script;
                 }
                 this.sync_active_tab_to_collection(cx);
             }

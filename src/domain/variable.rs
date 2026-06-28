@@ -160,6 +160,8 @@ pub fn substitute_request(request: &Request, pool: &HashMap<String, String>) -> 
         form_fields: substitute_form_fields(&request.form_fields, pool),
         multipart_fields: substitute_multipart_fields(&request.multipart_fields, pool),
         variables: request.variables.clone(),
+        pre_request_script: request.pre_request_script.clone(),
+        post_response_script: request.post_response_script.clone(),
     }
 }
 

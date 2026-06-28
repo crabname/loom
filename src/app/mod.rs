@@ -15,6 +15,8 @@ use gpui_component::{
     select::SelectState,
     tree::TreeState,
 };
+use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::domain::{EnvironmentRef, Workspace};
 
@@ -32,12 +34,15 @@ pub struct ApiHelperApp {
 
     pub(super) url_input: Entity<InputState>,
     pub(super) body_input: Entity<InputState>,
+    pub(super) pre_request_script_input: Entity<InputState>,
+    pub(super) post_response_script_input: Entity<InputState>,
     pub(super) response_body_input: Entity<InputState>,
     pub(super) method_select: Entity<SelectState<Vec<&'static str>>>,
     pub(super) body_type_select: Entity<SelectState<Vec<&'static str>>>,
     pub(super) workspace_select: Entity<SelectState<Vec<SharedString>>>,
     pub(super) environment_select: Entity<SelectState<Vec<SharedString>>>,
     pub(super) active_environment: Option<EnvironmentRef>,
+    pub(super) runtime_vars: HashMap<String, Value>,
 
     pub(super) query_inputs: Vec<RowInputs>,
     pub(super) header_inputs: Vec<RowInputs>,

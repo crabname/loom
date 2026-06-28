@@ -5,13 +5,14 @@ use gpui_component::{
     scroll::ScrollableElement as _,
     tab::TabBar,
     text::html,
+    tooltip::Tooltip,
     ActiveTheme as _,
 };
 
 use crate::app::tab::ResponsePanelTab;
 use crate::domain::{
     format_binary_body_message, format_response_size, is_html_content, response_content_type,
-    KeyValueField, ResponseBody, ResponseBodyView,
+    KeyValueField, RequestTimingBreakdown, ResponseBody, ResponseBodyView,
 };
 
 use super::ApiHelperApp;
@@ -21,8 +22,84 @@ struct ResponseStatusInfo<'a> {
     http_status: Option<u16>,
     status_text: Option<&'a str>,
     elapsed_ms: Option<u128>,
+    timing: Option<RequestTimingBreakdown>,
     size_bytes: Option<usize>,
     error: Option<&'a str>,
+}
+
+fn timing_span_color(index: usize, cx: &App) -> Hsla {
+    match index {
+        0 => cx.theme().chart_1,
+        1 => cx.theme().chart_2,
+        2 => cx.theme().chart_3,
+        3 => cx.theme().chart_4,
+        4 => cx.theme().chart_5,
+        _ => cx.theme().accent,
+    }
+}
+
+fn render_timing_waterfall(timing: RequestTimingBreakdown, cx: &App) -> AnyElement {
+    let spans = timing.visible_spans();
+    let total = timing.total_ms().max(1) as f32;
+    const BAR_WIDTH: f32 = 260.0;
+
+    let mut bar = h_flex()
+        .h(px(10.))
+        .w(px(BAR_WIDTH))
+        .rounded(px(3.))
+        .overflow_hidden()
+        .bg(cx.theme().muted);
+
+    for (index, (_, ms)) in spans.iter().enumerate() {
+        let width = ((*ms as f32 / total) * BAR_WIDTH).max(if *ms > 0 { 2.0 } else { 0.0 });
+        bar = bar.child(
+            div()
+                .h_full()
+                .w(px(width))
+                .bg(timing_span_color(index, cx)),
+        );
+    }
+
+    let mut legend = v_flex().gap_1();
+    for (index, (label, ms)) in spans.into_iter().enumerate() {
+        legend = legend.child(
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(
+                    div()
+                        .w(px(8.))
+                        .h(px(8.))
+                        .rounded(px(2.))
+                        .bg(timing_span_color(index, cx)),
+                )
+                .child(div().text_xs().flex_1().child(label))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(format!("{ms} ms")),
+                ),
+        );
+    }
+
+    v_flex()
+        .gap_2()
+        .child(
+            div()
+                .text_xs()
+                .font_weight(FontWeight::SEMIBOLD)
+                .child("Request timing"),
+        )
+        .child(bar)
+        .child(legend)
+        .child(
+            div()
+                .text_xs()
+                .text_color(cx.theme().muted_foreground)
+                .child(format!("Total {} ms", timing.total_ms())),
+        )
+        .into_any_element()
 }
 
 fn response_status_color(status: u16, cx: &Context<ApiHelperApp>) -> Hsla {
@@ -76,12 +153,21 @@ impl ApiHelperApp {
             );
 
             if let Some(ms) = status.elapsed_ms {
-                row = row.child(
-                    div()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(format!("· {ms} ms")),
-                );
+                let elapsed = div()
+                    .id("response-elapsed")
+                    .cursor_pointer()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!("· {ms} ms"));
+
+                row = row.child(if let Some(timing) = status.timing {
+                    elapsed.tooltip(move |window, cx| {
+                        Tooltip::element(move |_, cx| render_timing_waterfall(timing, cx))
+                            .build(window, cx)
+                    })
+                } else {
+                    elapsed
+                });
             }
 
             if let Some(size) = status.size_bytes {
@@ -267,6 +353,7 @@ impl ApiHelperApp {
             http_status,
             status_text,
             elapsed_ms,
+            timing,
             size_bytes,
             error,
             body,
@@ -281,6 +368,7 @@ impl ApiHelperApp {
                     tab.response_http_status,
                     tab.response_status_text.clone(),
                     tab.response_elapsed_ms,
+                    tab.response_timing,
                     tab.response_size_bytes,
                     tab.response_error.clone(),
                     tab.response_body.clone(),
@@ -291,6 +379,7 @@ impl ApiHelperApp {
                 ResponsePanelTab::Body,
                 ResponseBodyView::Raw,
                 false,
+                None,
                 None,
                 None,
                 None,
@@ -310,6 +399,7 @@ impl ApiHelperApp {
             http_status,
             status_text: status_text.as_deref(),
             elapsed_ms,
+            timing,
             size_bytes,
             error: error.as_deref(),
         };

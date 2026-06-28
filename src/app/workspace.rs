@@ -38,6 +38,7 @@ impl ApiHelperApp {
             tabs,
             active_tab: self.active_tab,
             active_environment: self.active_environment,
+            runtime_vars: self.runtime_vars.clone(),
         });
     }
 
@@ -48,6 +49,7 @@ impl ApiHelperApp {
                 .active_tab
                 .min(self.tabs.len().saturating_sub(1));
             self.active_environment = session.active_environment;
+            self.runtime_vars = session.runtime_vars;
             self.reload_active_tab_inputs(window, cx);
             self.refresh_environment_select(window, cx);
             return;
@@ -56,6 +58,7 @@ impl ApiHelperApp {
         self.tabs.clear();
         self.active_tab = 0;
         self.active_environment = self.default_environment_ref();
+        self.runtime_vars.clear();
         self.ensure_open_tab(window, cx);
         self.refresh_environment_select(window, cx);
     }

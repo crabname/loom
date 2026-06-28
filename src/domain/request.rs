@@ -90,6 +90,8 @@ impl Request {
             form_fields: default_form_fields(),
             multipart_fields: default_multipart_fields(),
             variables: default_variables(),
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
         }
     }
 }
@@ -107,6 +109,8 @@ pub struct Request {
     pub form_fields: Vec<FormField>,
     pub multipart_fields: Vec<MultipartField>,
     pub variables: Vec<Variable>,
+    pub pre_request_script: String,
+    pub post_response_script: String,
 }
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,6 @@
 mod app;
 mod domain;
+mod scripting;
 mod transport;
 
 use gpui::*;

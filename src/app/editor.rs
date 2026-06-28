@@ -56,6 +56,7 @@ impl ApiHelperApp {
             select.set_selected_value(&tab.body_type.label(), window, cx);
         });
         self.reload_body_input(window, cx);
+        self.reload_script_inputs(window, cx);
         self.reload_response_body_input(window, cx);
         self.reload_field_inputs(window, cx);
     }
@@ -122,8 +123,26 @@ impl ApiHelperApp {
         self.flush_field_inputs(cx);
         self.capture_url_query_state(cx);
         let body = self.body_input.read(cx).value().to_string();
+        let pre_request_script = self.pre_request_script_input.read(cx).value().to_string();
+        let post_response_script = self.post_response_script_input.read(cx).value().to_string();
         if let Some(tab) = self.tabs.get_mut(self.active_tab) {
             tab.request_body = body;
+            tab.pre_request_script = pre_request_script;
+            tab.post_response_script = post_response_script;
         }
+    }
+
+    pub(super) fn reload_script_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let tab = self.tabs.get(self.active_tab).cloned();
+        let Some(tab) = tab else {
+            return;
+        };
+
+        self.pre_request_script_input.update(cx, |input, cx| {
+            input.set_value(tab.pre_request_script.clone(), window, cx);
+        });
+        self.post_response_script_input.update(cx, |input, cx| {
+            input.set_value(tab.post_response_script.clone(), window, cx);
+        });
     }
 }

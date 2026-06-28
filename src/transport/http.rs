@@ -1,6 +1,6 @@
 use crate::domain::{
     build_url_with_params, classify_response_body, format_response_size, response_content_type,
-    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, MultipartFieldType,
+    BodyType, FormField, HttpMethod, HttpTiming, KeyValueField, MultipartField, MultipartFieldType,
     ResponseBody,
 };
 
@@ -21,10 +21,22 @@ pub async fn send_http_request(
     query_params: Vec<KeyValueField>,
     headers: Vec<KeyValueField>,
     body: HttpRequestBody,
-) -> Result<HttpResponse, String> {
-    let url = build_url_with_params(&url, &query_params)?;
+) -> HttpRequestResult {
+    let mut timing = HttpTiming::default();
+    let prepare_started = std::time::Instant::now();
 
-    let client = reqwest::Client::builder()
+    let url = match build_url_with_params(&url, &query_params) {
+        Ok(url) => url,
+        Err(error) => {
+            timing.prepare_request_ms = prepare_started.elapsed().as_millis();
+            return HttpRequestResult {
+                timing,
+                response: Err(error),
+            };
+        }
+    };
+
+    let client = match reqwest::Client::builder()
         .user_agent(concat!(
             env!("CARGO_PKG_NAME"),
             "/",
@@ -32,9 +44,16 @@ pub async fn send_http_request(
         ))
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .map_err(|e| e.to_string())?;
-
-    let started = std::time::Instant::now();
+    {
+        Ok(client) => client,
+        Err(error) => {
+            timing.prepare_request_ms = prepare_started.elapsed().as_millis();
+            return HttpRequestResult {
+                timing,
+                response: Err(error.to_string()),
+            };
+        }
+    };
 
     let request = match method {
         HttpMethod::Get => client.get(&url),
@@ -46,24 +65,70 @@ pub async fn send_http_request(
 
     let request = apply_headers(request, &headers);
 
-    let request = apply_body(request, body).await?;
+    let request = match apply_body(request, body).await {
+        Ok(request) => request,
+        Err(error) => {
+            timing.prepare_request_ms = prepare_started.elapsed().as_millis();
+            return HttpRequestResult {
+                timing,
+                response: Err(error),
+            };
+        }
+    };
 
-    let response = request.send().await.map_err(|e| e.to_string())?;
+    timing.prepare_request_ms = prepare_started.elapsed().as_millis();
+
+    let server_started = std::time::Instant::now();
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            timing.server_wait_ms = server_started.elapsed().as_millis();
+            return HttpRequestResult {
+                timing,
+                response: Err(error.to_string()),
+            };
+        }
+    };
+    timing.server_wait_ms = server_started.elapsed().as_millis();
+
     let status = response.status();
     let headers = parse_response_headers(response.headers());
-    let bytes = read_response_bytes_limited(response, MAX_RESPONSE_BYTES).await?;
+
+    let read_started = std::time::Instant::now();
+    let bytes = match read_response_bytes_limited(response, MAX_RESPONSE_BYTES).await {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            timing.read_body_ms = read_started.elapsed().as_millis();
+            return HttpRequestResult {
+                timing,
+                response: Err(error),
+            };
+        }
+    };
+    timing.read_body_ms = read_started.elapsed().as_millis();
+
+    let parse_started = std::time::Instant::now();
     let content_type = response_content_type(&headers);
     let body = classify_response_body(&bytes, content_type.as_deref());
-    let elapsed_ms = started.elapsed().as_millis();
+    timing.parse_response_ms = parse_started.elapsed().as_millis();
 
-    Ok(HttpResponse {
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or("Unknown").into(),
-        headers,
-        body,
-        elapsed_ms,
-        size_bytes: bytes.len(),
-    })
+    HttpRequestResult {
+        timing,
+        response: Ok(HttpResponse {
+            status: status.as_u16(),
+            status_text: status.canonical_reason().unwrap_or("Unknown").into(),
+            headers,
+            body,
+            elapsed_ms: timing.total_ms(),
+            size_bytes: bytes.len(),
+        }),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HttpRequestResult {
+    pub timing: HttpTiming,
+    pub response: Result<HttpResponse, String>,
 }
 
 #[derive(Debug, Clone)]

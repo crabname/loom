@@ -11,7 +11,7 @@ use gpui_component::{
 
 use crate::domain::BodyType;
 
-use crate::app::tab::RequestPanelTab;
+use crate::app::tab::{RequestPanelTab, RequestScriptSubTab};
 
 use super::ApiHelperApp;
 
@@ -47,6 +47,7 @@ impl ApiHelperApp {
             RequestPanelTab::Vars => {
                 self.render_request_variables(cx).into_any_element()
             }
+            RequestPanelTab::Script => self.render_request_scripts(cx).into_any_element(),
             RequestPanelTab::Body => {
                 let body_type = self
                     .active_tab()
@@ -134,6 +135,7 @@ impl ApiHelperApp {
                         RequestPanelTab::Headers => 1,
                         RequestPanelTab::Body => 2,
                         RequestPanelTab::Vars => 3,
+                        RequestPanelTab::Script => 4,
                     })
                     .on_click(cx.listener(|this, index: &usize, _, cx| {
                         if let Some(tab) = this.active_tab_mut() {
@@ -141,7 +143,8 @@ impl ApiHelperApp {
                                 0 => RequestPanelTab::Params,
                                 1 => RequestPanelTab::Headers,
                                 2 => RequestPanelTab::Body,
-                                _ => RequestPanelTab::Vars,
+                                3 => RequestPanelTab::Vars,
+                                _ => RequestPanelTab::Script,
                             };
                             cx.notify();
                         }
@@ -149,7 +152,8 @@ impl ApiHelperApp {
                     .child("Params")
                     .child("Headers")
                     .child("Body")
-                    .child("Vars"),
+                    .child("Vars")
+                    .child("Script"),
             )
             .child(
                 div()
@@ -158,6 +162,52 @@ impl ApiHelperApp {
                     .overflow_y_scrollbar()
                     .child(panel_content),
             )
+    }
+
+    fn render_request_scripts(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let script_sub_tab = self
+            .active_tab()
+            .map(|tab| tab.request_script_sub_tab)
+            .unwrap_or(RequestScriptSubTab::PreRequest);
+
+        let editor = match script_sub_tab {
+            RequestScriptSubTab::PreRequest => Input::new(&self.pre_request_script_input),
+            RequestScriptSubTab::PostResponse => Input::new(&self.post_response_script_input),
+        };
+
+        v_flex()
+            .gap_2()
+            .size_full()
+            .child(
+                TabBar::new("request-script-sub-tabs")
+                    .flex_shrink_0()
+                    .underline()
+                    .selected_index(match script_sub_tab {
+                        RequestScriptSubTab::PreRequest => 0,
+                        RequestScriptSubTab::PostResponse => 1,
+                    })
+                    .on_click(cx.listener(|this, index: &usize, _, cx| {
+                        if let Some(tab) = this.active_tab_mut() {
+                            tab.request_script_sub_tab = match index {
+                                0 => RequestScriptSubTab::PreRequest,
+                                _ => RequestScriptSubTab::PostResponse,
+                            };
+                            cx.notify();
+                        }
+                    }))
+                    .child("Pre-request")
+                    .child("Post-response"),
+            )
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(
+                        "Use host.getVar / host.setVar for runtime variables and \
+                         host.getEnvVar / host.setEnvVar for the active environment.",
+                    ),
+            )
+            .child(div().flex_1().min_h_0().child(editor.h_full()))
     }
 
     fn render_request_variables(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {

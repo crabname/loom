@@ -5,6 +5,7 @@ mod environment;
 mod fields;
 mod request;
 mod response;
+mod timing;
 mod url;
 mod variable;
 mod workspace;
@@ -20,6 +21,7 @@ pub use environment::{Environment, EnvironmentRef, EnvironmentScope};
 pub use fields::*;
 pub use request::{Collection, CollectionFolder, Request, RequestProtocol, BodyType, HttpMethod};
 pub use response::*;
+pub use timing::{HttpTiming, RequestTimingBreakdown};
 pub use variable::{
     build_variable_pool, default_variables, substitute_form_fields, substitute_key_value_fields,
     substitute_multipart_fields, substitute_request, substitute_variables, Variable,
