@@ -1,5 +1,0 @@
-name: Get Users
-protocol: http
-method: GET
-url: "{{baseUrl}}/{{resource}}"
-body_type: none

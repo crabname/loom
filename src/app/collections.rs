@@ -2,7 +2,7 @@ use gpui::*;
 use gpui_component::tree::{TreeEvent, TreeItem};
 
 use crate::domain::{Collection, CollectionFolder, EnvironmentRef, EnvironmentScope, Request};
-use crate::storage::{remove_collection_dir, remove_folder_dir};
+use crate::storage::{default_collection_paths, remove_collection_dir, remove_folder_dir};
 
 use super::ui::{
     build_collection_tree_items, parse_collection_tree_id, parse_folder_tree_id, request_tree_id,
@@ -117,7 +117,11 @@ impl ApiHelperApp {
         };
 
         self.active_collections_mut().push(Collection::new(name));
-        self.workspace_collection_paths[self.active_workspace].push(String::new());
+        let collection_path = default_collection_paths(&self.workspaces[self.active_workspace])
+            .last()
+            .expect("collection was just added")
+            .clone();
+        self.workspace_collection_paths[self.active_workspace].push(collection_path);
 
         self.refresh_collections_tree(cx);
         self.refresh_environment_select(window, cx);
@@ -345,7 +349,7 @@ impl ApiHelperApp {
             .get(self.active_workspace)
             .and_then(|paths| paths.get(collection))
             .cloned();
-        let folder_name = self.active_collections()[collection].folders[folder].name.clone();
+        let folder_id = self.active_collections()[collection].folders[folder].id;
         let active_tab_id = self.tabs.get(self.active_tab).map(|tab| tab.id);
 
         self.tabs.retain(|tab| {
@@ -375,7 +379,7 @@ impl ApiHelperApp {
             self.workspace_bindings[self.active_workspace].local_path(),
             collection_path.as_deref(),
         ) {
-            let _ = remove_folder_dir(workspace_path, collection_path, &folder_name);
+            let _ = remove_folder_dir(workspace_path, collection_path, folder_id);
         }
 
         self.ensure_open_tab(window, cx);

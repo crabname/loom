@@ -1,3 +1,0 @@
-variables:
-  - name: apiVersion
-    value: v1

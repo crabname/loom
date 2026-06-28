@@ -149,6 +149,7 @@ pub fn substitute_multipart_fields(
 
 pub fn substitute_request(request: &Request, pool: &HashMap<String, String>) -> Request {
     Request {
+        id: request.id,
         name: request.name.clone(),
         protocol: request.protocol,
         method: request.method,

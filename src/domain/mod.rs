@@ -2,6 +2,7 @@ mod body_format;
 mod curl;
 mod environment;
 mod fields;
+mod id;
 mod request;
 mod response;
 mod timing;
@@ -18,6 +19,7 @@ pub use url::{
 
 pub use environment::{Environment, EnvironmentRef, EnvironmentScope};
 pub use fields::*;
+pub use id::EntityId;
 pub use request::{Collection, CollectionFolder, Request, RequestProtocol, BodyType, HttpMethod};
 pub use response::*;
 pub use timing::{HttpTiming, RequestTimingBreakdown};

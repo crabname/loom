@@ -1,6 +1,6 @@
 use super::{
     default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
-    Environment, FormField, KeyValueField, MultipartField, Variable,
+    EntityId, Environment, FormField, KeyValueField, MultipartField, Variable,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -79,6 +79,7 @@ impl HttpMethod {
 impl Request {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            id: EntityId::new(),
             name: name.into(),
             protocol: RequestProtocol::default(),
             method: HttpMethod::Get,
@@ -98,6 +99,7 @@ impl Request {
 
 #[derive(Debug, Clone)]
 pub struct Request {
+    pub id: EntityId,
     pub name: String,
     pub protocol: RequestProtocol,
     pub method: HttpMethod,
@@ -115,6 +117,7 @@ pub struct Request {
 
 #[derive(Debug, Clone)]
 pub struct CollectionFolder {
+    pub id: EntityId,
     pub name: String,
     pub expanded: bool,
     pub variables: Vec<Variable>,
@@ -124,6 +127,7 @@ pub struct CollectionFolder {
 impl CollectionFolder {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            id: EntityId::new(),
             name: name.into(),
             expanded: true,
             variables: default_variables(),
@@ -134,6 +138,7 @@ impl CollectionFolder {
 
 #[derive(Debug, Clone)]
 pub struct Collection {
+    pub id: EntityId,
     pub name: String,
     pub expanded: bool,
     pub variables: Vec<Variable>,
@@ -145,6 +150,7 @@ pub struct Collection {
 impl Collection {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            id: EntityId::new(),
             name: name.into(),
             expanded: true,
             variables: default_variables(),

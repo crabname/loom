@@ -5,8 +5,8 @@ mod yaml;
 
 pub use app_state::{AppState, WorkspaceRef};
 pub use local::{
-    default_workspace_collection_paths, LoadedWorkspace, LocalStorageProvider,
-    remove_collection_dir, remove_folder_dir,
+    default_collection_paths, default_workspace_collection_paths, LoadedWorkspace,
+    LocalStorageProvider, remove_collection_dir, remove_folder_dir,
 };
 pub use paths::AppPaths;
 

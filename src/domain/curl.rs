@@ -192,42 +192,30 @@ pub fn parse_curl(curl: &str) -> Result<Request, String> {
             Some(ct) if ct.contains("xml") => BodyType::Xml,
             Some(ct) if ct.contains("x-www-form-urlencoded") => {
                 let form_fields = parse_form_body(&body)?;
-                return Ok(Request {
-                    name: "Imported Request".into(),
-                    protocol: RequestProtocol::Http,
-                    method,
-                    url: base_url,
-                    query_params,
-                    headers,
-                    body_type: BodyType::FormUrlEncoded,
-                    body: String::new(),
-                    form_fields,
-                    multipart_fields: default_multipart_fields(),
-                    variables: default_variables(),
-                    pre_request_script: String::new(),
-                    post_response_script: String::new(),
-                });
+                let mut request = Request::new("Imported Request");
+                request.method = method;
+                request.url = base_url;
+                request.query_params = query_params;
+                request.headers = headers;
+                request.body_type = BodyType::FormUrlEncoded;
+                request.form_fields = form_fields;
+                return Ok(request);
             }
             _ => BodyType::Json,
         };
         (body_type, body, default_form_fields(), default_multipart_fields())
     };
 
-    Ok(Request {
-        name: "Imported Request".into(),
-        protocol: RequestProtocol::Http,
-        method,
-        url: base_url,
-        query_params,
-        headers,
-        body_type,
-        body,
-        form_fields,
-        multipart_fields,
-        variables: default_variables(),
-        pre_request_script: String::new(),
-        post_response_script: String::new(),
-    })
+    let mut request = Request::new("Imported Request");
+    request.method = method;
+    request.url = base_url;
+    request.query_params = query_params;
+    request.headers = headers;
+    request.body_type = body_type;
+    request.body = body;
+    request.form_fields = form_fields;
+    request.multipart_fields = multipart_fields;
+    Ok(request)
 }
 
 fn tokenize_curl(input: &str) -> Result<Vec<String>, String> {
@@ -391,21 +379,9 @@ mod tests {
 
     #[test]
     fn exports_simple_get() {
-        let request = Request {
-            name: "Test".into(),
-            protocol: RequestProtocol::Http,
-            method: HttpMethod::Get,
-            url: "https://example.com/users".into(),
-            query_params: default_key_value_fields(),
-            headers: default_key_value_fields(),
-            body_type: BodyType::None,
-            body: String::new(),
-            form_fields: default_form_fields(),
-            multipart_fields: default_multipart_fields(),
-            variables: default_variables(),
-            pre_request_script: String::new(),
-            post_response_script: String::new(),
-        };
+        let mut request = Request::new("Test");
+        request.method = HttpMethod::Get;
+        request.url = "https://example.com/users".into();
 
         let curl = request_to_curl(&request).unwrap();
         assert!(curl.contains("curl"));
@@ -415,25 +391,16 @@ mod tests {
 
     #[test]
   fn exports_post_with_json() {
-        let request = Request {
-            name: "Create".into(),
-            protocol: RequestProtocol::Http,
-            method: HttpMethod::Post,
-            url: "https://example.com/users".into(),
-            query_params: default_key_value_fields(),
-            headers: vec![KeyValueField {
-                enabled: true,
-                name: "Authorization".into(),
-                value: "Bearer token".into(),
-            }],
-            body_type: BodyType::Json,
-            body: r#"{"name":"Alice"}"#.into(),
-            form_fields: default_form_fields(),
-            multipart_fields: default_multipart_fields(),
-            variables: default_variables(),
-            pre_request_script: String::new(),
-            post_response_script: String::new(),
-        };
+        let mut request = Request::new("Create");
+        request.method = HttpMethod::Post;
+        request.url = "https://example.com/users".into();
+        request.headers = vec![KeyValueField {
+            enabled: true,
+            name: "Authorization".into(),
+            value: "Bearer token".into(),
+        }];
+        request.body_type = BodyType::Json;
+        request.body = r#"{"name":"Alice"}"#.into();
 
         let curl = request_to_curl(&request).unwrap();
         assert!(curl.contains("-X POST"));
@@ -483,32 +450,21 @@ mod tests {
 
     #[test]
     fn round_trips_exported_request() {
-        let request = Request {
-            name: "Search".into(),
-            protocol: RequestProtocol::Http,
-            method: HttpMethod::Get,
-            url: "https://example.com/search".into(),
-            query_params: vec![
-                KeyValueField {
-                    enabled: true,
-                    name: "q".into(),
-                    value: "rust".into(),
-                },
-                KeyValueField {
-                    enabled: true,
-                    name: "page".into(),
-                    value: "2".into(),
-                },
-            ],
-            headers: default_key_value_fields(),
-            body_type: BodyType::None,
-            body: String::new(),
-            form_fields: default_form_fields(),
-            multipart_fields: default_multipart_fields(),
-            variables: default_variables(),
-            pre_request_script: String::new(),
-            post_response_script: String::new(),
-        };
+        let mut request = Request::new("Search");
+        request.method = HttpMethod::Get;
+        request.url = "https://example.com/search".into();
+        request.query_params = vec![
+            KeyValueField {
+                enabled: true,
+                name: "q".into(),
+                value: "rust".into(),
+            },
+            KeyValueField {
+                enabled: true,
+                name: "page".into(),
+                value: "2".into(),
+            },
+        ];
 
         let curl = request_to_curl(&request).unwrap();
         let parsed = parse_curl(&curl).unwrap();

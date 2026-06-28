@@ -2,11 +2,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-use crate::domain::{Collection, CollectionFolder, Environment, Request, Variable, Workspace};
+use crate::domain::{Collection, CollectionFolder, EntityId, Environment, Request, Variable, Workspace};
 
 use super::yaml::{
     collection_from_parts, serializable_variables, workspace_from_parts, CollectionFile,
     CollectionRef, EnvironmentFile, FolderFile, RequestFile, VariablesFile, WorkspaceFile,
+    WORKSPACE_FORMAT_VERSION,
 };
 
 const WORKSPACE_FILE: &str = "workspace.yml";
@@ -26,6 +27,12 @@ pub struct LocalStorageProvider;
 impl LocalStorageProvider {
     pub fn load_workspace(path: &Path) -> Result<LoadedWorkspace, String> {
         let workspace_file = read_yaml::<WorkspaceFile>(&path.join(WORKSPACE_FILE))?;
+        if workspace_file.version != WORKSPACE_FORMAT_VERSION {
+            return Err(format!(
+                "unsupported workspace format version {} (expected {WORKSPACE_FORMAT_VERSION})",
+                workspace_file.version
+            ));
+        }
 
         let variables = if path.join(VARIABLES_FILE).exists() {
             read_yaml::<VariablesFile>(&path.join(VARIABLES_FILE))?
@@ -39,21 +46,12 @@ impl LocalStorageProvider {
 
         let environments = load_environments(&path.join(ENVIRONMENTS_DIR))?;
 
-        let collection_refs = if workspace_file.collections.is_empty() {
-            discover_collections(path)?
-        } else {
-            workspace_file.collections
-        };
-
-        let collection_paths = collection_refs
-            .iter()
-            .map(|collection_ref| collection_ref.path.clone())
-            .collect::<Vec<_>>();
-
         let mut collections = Vec::new();
-        for collection_ref in collection_refs {
-            let collection_path = path.join(&collection_ref.path);
-            collections.push(load_collection(&collection_path)?);
+        let mut collection_paths = Vec::new();
+        for collection_ref in workspace_file.collections {
+            let collection_path = collection_dir_path(collection_ref.id);
+            collections.push(load_collection(&path.join(&collection_path), collection_ref.id)?);
+            collection_paths.push(collection_path);
         }
 
         Ok(LoadedWorkspace {
@@ -74,18 +72,17 @@ impl LocalStorageProvider {
     ) -> Result<(), String> {
         fs::create_dir_all(path).map_err(|error| error.to_string())?;
 
-        ensure_collection_paths(workspace, collection_paths);
+        sync_collection_paths(workspace, collection_paths);
 
         write_yaml(
             &path.join(WORKSPACE_FILE),
             &WorkspaceFile {
-                version: 1,
+                version: WORKSPACE_FORMAT_VERSION,
                 name: workspace.name.clone(),
-                collections: collection_paths
+                collections: workspace
+                    .collections
                     .iter()
-                    .map(|collection_path| CollectionRef {
-                        path: collection_path.clone(),
-                    })
+                    .map(CollectionRef::from_collection)
                     .collect(),
             },
         )?;
@@ -93,24 +90,38 @@ impl LocalStorageProvider {
         save_variables(&path.join(VARIABLES_FILE), &workspace.variables)?;
         save_environments(&path.join(ENVIRONMENTS_DIR), &workspace.environments)?;
 
-        for (collection, collection_path) in workspace.collections.iter().zip(collection_paths) {
+        let mut keep_collections = HashSet::new();
+        for (collection, collection_path) in workspace.collections.iter().zip(collection_paths.iter()) {
             save_collection(&path.join(collection_path), collection)?;
+            keep_collections.insert(
+                collection_path
+                    .strip_prefix(&format!("{COLLECTIONS_DIR}/"))
+                    .unwrap_or(collection_path)
+                    .to_string(),
+            );
         }
 
+        prune_stale_collection_dirs(&path.join(COLLECTIONS_DIR), &keep_collections)?;
         Ok(())
     }
 }
 
-fn ensure_collection_paths(workspace: &Workspace, collection_paths: &mut Vec<String>) {
-    if collection_paths.len() < workspace.collections.len() {
-        collection_paths.resize(workspace.collections.len(), String::new());
-    }
+fn collection_dir_path(id: EntityId) -> String {
+    format!("{COLLECTIONS_DIR}/{id}")
+}
 
-    for (index, collection) in workspace.collections.iter().enumerate() {
-        if collection_paths[index].is_empty() {
-            collection_paths[index] = format!("{COLLECTIONS_DIR}/{}", slugify(&collection.name));
-        }
-    }
+fn sync_collection_paths(workspace: &Workspace, collection_paths: &mut Vec<String>) {
+    collection_paths.clear();
+    collection_paths.extend(
+        workspace
+            .collections
+            .iter()
+            .map(|collection| collection_dir_path(collection.id)),
+    );
+}
+
+fn entity_file_name(id: EntityId) -> String {
+    format!("{id}.yml")
 }
 
 fn save_variables(path: &Path, variables: &[Variable]) -> Result<(), String> {
@@ -133,10 +144,9 @@ fn save_variables(path: &Path, variables: &[Variable]) -> Result<(), String> {
 fn save_environments(path: &Path, environments: &[Environment]) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|error| error.to_string())?;
 
-    let mut used = HashSet::new();
     let mut keep = HashSet::new();
     for environment in environments {
-        let file_name = format!("{}.yml", unique_slug(&slugify(&environment.name), &mut used));
+        let file_name = entity_file_name(environment.id);
         write_yaml(&path.join(&file_name), &EnvironmentFile::from(environment))?;
         keep.insert(file_name);
     }
@@ -150,30 +160,31 @@ fn save_collection(path: &Path, collection: &Collection) -> Result<(), String> {
     write_yaml(&path.join(COLLECTION_FILE), &CollectionFile::from(collection))?;
     save_environments(&path.join(ENVIRONMENTS_DIR), &collection.environments)?;
 
-    let mut used = HashSet::new();
-    let mut keep = HashSet::from([COLLECTION_FILE.to_string()]);
+    let mut keep_files = HashSet::from([COLLECTION_FILE.to_string()]);
+    let mut keep_dirs = HashSet::new();
     for request in &collection.requests {
-        let file_name = format!("{}.yml", unique_slug(&slugify(&request.name), &mut used));
+        let file_name = entity_file_name(request.id);
         save_request(&path.join(&file_name), request)?;
-        keep.insert(file_name);
+        keep_files.insert(file_name);
     }
 
     for folder in &collection.folders {
         save_folder(path, folder)?;
+        keep_dirs.insert(folder.id.to_string());
     }
 
-    prune_stale_yaml_files(path, &keep)
+    prune_stale_yaml_files(path, &keep_files)?;
+    prune_stale_subdirs(path, &keep_dirs, &[ENVIRONMENTS_DIR])
 }
 
 fn save_folder(collection_path: &Path, folder: &CollectionFolder) -> Result<(), String> {
-    let folder_path = collection_path.join(slugify(&folder.name));
+    let folder_path = collection_path.join(folder.id.to_string());
     fs::create_dir_all(&folder_path).map_err(|error| error.to_string())?;
     write_yaml(&folder_path.join(FOLDER_FILE), &FolderFile::from(folder))?;
 
-    let mut used = HashSet::new();
     let mut keep = HashSet::from([FOLDER_FILE.to_string()]);
     for request in &folder.requests {
-        let file_name = format!("{}.yml", unique_slug(&slugify(&request.name), &mut used));
+        let file_name = entity_file_name(request.id);
         save_request(&folder_path.join(&file_name), request)?;
         keep.insert(file_name);
     }
@@ -212,36 +223,49 @@ fn prune_stale_yaml_files(dir: &Path, keep: &HashSet<String>) -> Result<(), Stri
     Ok(())
 }
 
-fn discover_collections(workspace_path: &Path) -> Result<Vec<CollectionRef>, String> {
-    let collections_root = workspace_path.join(COLLECTIONS_DIR);
-    if !collections_root.is_dir() {
-        return Ok(Vec::new());
+fn prune_stale_subdirs(
+    dir: &Path,
+    keep: &HashSet<String>,
+    reserved: &[&str],
+) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Ok(());
     }
 
-    let mut refs = Vec::new();
-    for entry in fs::read_dir(&collections_root).map_err(|error| error.to_string())? {
+    for entry in fs::read_dir(dir).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
-        if !entry.file_type().map_err(|error| error.to_string())?.is_dir() {
+        if !entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_dir()
+        {
             continue;
         }
 
-        let collection_path = entry.path();
-        if collection_path.join(COLLECTION_FILE).is_file() {
-            let relative = collection_path
-                .strip_prefix(workspace_path)
-                .map_err(|error| error.to_string())?
-                .to_string_lossy()
-                .replace('\\', "/");
-            refs.push(CollectionRef { path: relative });
+        let dir_name = entry.file_name().to_string_lossy().into_owned();
+        if reserved.contains(&dir_name.as_str()) || keep.contains(&dir_name) {
+            continue;
         }
+
+        fs::remove_dir_all(entry.path()).map_err(|error| error.to_string())?;
     }
 
-    refs.sort_by(|left, right| left.path.cmp(&right.path));
-    Ok(refs)
+    Ok(())
 }
 
-fn load_collection(collection_path: &Path) -> Result<Collection, String> {
+fn prune_stale_collection_dirs(collections_root: &Path, keep: &HashSet<String>) -> Result<(), String> {
+    prune_stale_subdirs(collections_root, keep, &[])
+}
+
+fn load_collection(collection_path: &Path, expected_id: EntityId) -> Result<Collection, String> {
     let collection_file = read_yaml::<CollectionFile>(&collection_path.join(COLLECTION_FILE))?;
+    if collection_file.id != expected_id {
+        return Err(format!(
+            "collection id mismatch in {}: expected {expected_id}, found {}",
+            collection_path.display(),
+            collection_file.id
+        ));
+    }
 
     let variables = collection_file
         .variables
@@ -281,6 +305,7 @@ fn load_collection(collection_path: &Path) -> Result<Collection, String> {
     requests.sort_by(|left, right| left.name.cmp(&right.name));
 
     Ok(collection_from_parts(
+        collection_file.id,
         collection_file.name,
         variables,
         environments,
@@ -292,6 +317,18 @@ fn load_collection(collection_path: &Path) -> Result<Collection, String> {
 fn load_folder(folder_path: &Path) -> Result<CollectionFolder, String> {
     let mut folder: CollectionFolder =
         read_yaml::<FolderFile>(&folder_path.join(FOLDER_FILE))?.into();
+
+    let expected_dir = folder.id.to_string();
+    let actual_dir = folder_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if actual_dir != expected_dir {
+        return Err(format!(
+            "folder directory name mismatch in {}: expected {expected_dir}, found {actual_dir}",
+            folder_path.display()
+        ));
+    }
 
     for entry in fs::read_dir(folder_path).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
@@ -316,7 +353,19 @@ fn load_folder(folder_path: &Path) -> Result<CollectionFolder, String> {
 }
 
 fn load_request(path: &Path) -> Result<Request, String> {
-    Ok(read_yaml::<RequestFile>(path)?.into())
+    let request: Request = read_yaml::<RequestFile>(path)?.into();
+    let expected_file = entity_file_name(request.id);
+    let actual_file = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if actual_file != expected_file {
+        return Err(format!(
+            "request file name mismatch in {}: expected {expected_file}, found {actual_file}",
+            path.display()
+        ));
+    }
+    Ok(request)
 }
 
 fn load_environments(path: &Path) -> Result<Vec<Environment>, String> {
@@ -337,12 +386,28 @@ fn load_environments(path: &Path) -> Result<Vec<Environment>, String> {
 
         let entry_path = entry.path();
         if entry_path.extension().is_some_and(|ext| ext == "yml") {
-            environments.push(read_yaml::<EnvironmentFile>(&entry_path)?.into());
+            environments.push(load_environment(&entry_path)?);
         }
     }
 
     environments.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(environments)
+}
+
+fn load_environment(path: &Path) -> Result<Environment, String> {
+    let environment: Environment = read_yaml::<EnvironmentFile>(path)?.into();
+    let expected_file = entity_file_name(environment.id);
+    let actual_file = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if actual_file != expected_file {
+        return Err(format!(
+            "environment file name mismatch in {}: expected {expected_file}, found {actual_file}",
+            path.display()
+        ));
+    }
+    Ok(environment)
 }
 
 fn read_yaml<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
@@ -389,20 +454,6 @@ pub fn slugify(name: &str) -> String {
     }
 }
 
-fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
-    let base = if base.is_empty() { "untitled" } else { base };
-    let mut slug = base.to_string();
-    let mut counter = 2;
-
-    while used.contains(&slug) {
-        slug = format!("{base}-{counter}");
-        counter += 1;
-    }
-
-    used.insert(slug.clone());
-    slug
-}
-
 pub fn remove_collection_dir(workspace_path: &Path, collection_path: &str) -> Result<(), String> {
     let path = workspace_path.join(collection_path);
     if path.is_dir() {
@@ -414,9 +465,9 @@ pub fn remove_collection_dir(workspace_path: &Path, collection_path: &str) -> Re
 pub fn remove_folder_dir(
     workspace_path: &Path,
     collection_path: &str,
-    folder_name: &str,
+    folder_id: EntityId,
 ) -> Result<(), String> {
-    let path = workspace_path.join(collection_path).join(slugify(folder_name));
+    let path = workspace_path.join(collection_path).join(folder_id.to_string());
     if path.is_dir() {
         fs::remove_dir_all(&path).map_err(|error| error.to_string())?;
     }
@@ -427,7 +478,7 @@ pub fn default_collection_paths(workspace: &Workspace) -> Vec<String> {
     workspace
         .collections
         .iter()
-        .map(|collection| format!("{COLLECTIONS_DIR}/{}", slugify(&collection.name)))
+        .map(|collection| collection_dir_path(collection.id))
         .collect()
 }
 

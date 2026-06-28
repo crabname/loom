@@ -1,9 +1,0 @@
-name: Get User
-protocol: http
-method: GET
-url: "{{baseUrl}}/users/{{userId}}"
-query_params:
-  - enabled: true
-    name: _expand
-    value: posts
-body_type: none

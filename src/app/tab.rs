@@ -1,6 +1,6 @@
 use crate::domain::{
     default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
-    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request, RequestProtocol,
+    BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request,
     RequestTimingBreakdown, ResponseBody, ResponseBodyView, Variable,
 };
 
@@ -136,20 +136,18 @@ impl Tab {
     }
 
     pub fn to_request(&self) -> Request {
-        Request {
-            name: self.title.clone(),
-            protocol: RequestProtocol::Http,
-            method: self.method,
-            url: self.url.clone(),
-            query_params: self.query_params.clone(),
-            headers: self.headers.clone(),
-            body_type: self.body_type,
-            body: self.request_body.clone(),
-            form_fields: self.form_fields.clone(),
-            multipart_fields: self.multipart_fields.clone(),
-            variables: self.variables.clone(),
-            pre_request_script: self.pre_request_script.clone(),
-            post_response_script: self.post_response_script.clone(),
-        }
+        let mut request = Request::new(self.title.clone());
+        request.method = self.method;
+        request.url = self.url.clone();
+        request.query_params = self.query_params.clone();
+        request.headers = self.headers.clone();
+        request.body_type = self.body_type;
+        request.body = self.request_body.clone();
+        request.form_fields = self.form_fields.clone();
+        request.multipart_fields = self.multipart_fields.clone();
+        request.variables = self.variables.clone();
+        request.pre_request_script = self.pre_request_script.clone();
+        request.post_response_script = self.post_response_script.clone();
+        request
     }
 }

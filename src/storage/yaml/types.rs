@@ -3,9 +3,11 @@ use serde_json::Value;
 
 use crate::domain::{
     default_key_value_fields, default_multipart_fields, default_variables,
-    BodyType, Collection, CollectionFolder, Environment, FormField, HttpMethod, MultipartField,
-    MultipartFieldType, Request, RequestProtocol, Variable, Workspace,
+    BodyType, Collection, CollectionFolder, EntityId, Environment, FormField, HttpMethod,
+    MultipartField, MultipartFieldType, Request, RequestProtocol, Variable, Workspace,
 };
+
+pub const WORKSPACE_FORMAT_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorkspaceFile {
@@ -17,7 +19,15 @@ pub struct WorkspaceFile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CollectionRef {
-    pub path: String,
+    pub id: EntityId,
+}
+
+impl CollectionRef {
+    pub fn from_collection(collection: &Collection) -> Self {
+        Self {
+            id: collection.id,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,6 +38,8 @@ pub struct VariablesFile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvironmentFile {
+    #[serde(default)]
+    pub id: EntityId,
     pub name: String,
     #[serde(default)]
     pub variables: Vec<VariableFile>,
@@ -35,6 +47,8 @@ pub struct EnvironmentFile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CollectionFile {
+    #[serde(default)]
+    pub id: EntityId,
     pub name: String,
     #[serde(default)]
     pub variables: Vec<VariableFile>,
@@ -42,6 +56,8 @@ pub struct CollectionFile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FolderFile {
+    #[serde(default)]
+    pub id: EntityId,
     pub name: String,
     #[serde(default)]
     pub variables: Vec<VariableFile>,
@@ -49,6 +65,8 @@ pub struct FolderFile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestFile {
+    #[serde(default)]
+    pub id: EntityId,
     pub name: String,
     #[serde(default)]
     pub protocol: ProtocolFile,
@@ -225,6 +243,7 @@ impl From<MultipartFieldFile> for MultipartField {
 impl From<EnvironmentFile> for Environment {
     fn from(value: EnvironmentFile) -> Self {
         Self {
+            id: value.id,
             name: value.name,
             variables: normalize_variables(value.variables.into_iter().map(Into::into).collect()),
         }
@@ -234,6 +253,7 @@ impl From<EnvironmentFile> for Environment {
 impl From<RequestFile> for Request {
     fn from(value: RequestFile) -> Self {
         Self {
+            id: value.id,
             name: value.name,
             protocol: value.protocol.into(),
             method: value.method.into(),
@@ -260,6 +280,7 @@ impl From<RequestFile> for Request {
 impl From<FolderFile> for CollectionFolder {
     fn from(value: FolderFile) -> Self {
         Self {
+            id: value.id,
             name: value.name,
             expanded: true,
             variables: normalize_variables(value.variables.into_iter().map(Into::into).collect()),
@@ -312,6 +333,7 @@ pub fn workspace_from_parts(
 }
 
 pub fn collection_from_parts(
+    id: EntityId,
     name: String,
     variables: Vec<Variable>,
     environments: Vec<Environment>,
@@ -319,6 +341,7 @@ pub fn collection_from_parts(
     requests: Vec<Request>,
 ) -> Collection {
     Collection {
+        id,
         name,
         expanded: true,
         variables: normalize_variables(variables),
@@ -414,6 +437,7 @@ impl From<MultipartFieldType> for MultipartFieldTypeFile {
 impl From<&Environment> for EnvironmentFile {
     fn from(value: &Environment) -> Self {
         Self {
+            id: value.id,
             name: value.name.clone(),
             variables: serializable_variables(&value.variables),
         }
@@ -423,6 +447,7 @@ impl From<&Environment> for EnvironmentFile {
 impl From<&Collection> for CollectionFile {
     fn from(value: &Collection) -> Self {
         Self {
+            id: value.id,
             name: value.name.clone(),
             variables: serializable_variables(&value.variables),
         }
@@ -432,6 +457,7 @@ impl From<&Collection> for CollectionFile {
 impl From<&CollectionFolder> for FolderFile {
     fn from(value: &CollectionFolder) -> Self {
         Self {
+            id: value.id,
             name: value.name.clone(),
             variables: serializable_variables(&value.variables),
         }
@@ -441,6 +467,7 @@ impl From<&CollectionFolder> for FolderFile {
 impl From<&Request> for RequestFile {
     fn from(value: &Request) -> Self {
         Self {
+            id: value.id,
             name: value.name.clone(),
             protocol: value.protocol.into(),
             method: value.method.into(),
