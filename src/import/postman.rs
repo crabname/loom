@@ -4,7 +4,8 @@ use std::path::Path;
 use serde_json::{json, Map, Value};
 
 use crate::domain::{
-    Collection, CollectionFolder, HttpMethod, Request, RequestProtocol,
+    BodyType, Collection, CollectionFolder, FormField, HttpMethod, MultipartField, Request,
+    RequestProtocol,
 };
 
 use super::shared::{
@@ -13,6 +14,26 @@ use super::shared::{
 
 const POSTMAN_SCHEMA_V21: &str =
     "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
+
+#[derive(Debug, Clone)]
+struct ParsedPostmanRequest {
+    method: HttpMethod,
+    url: String,
+    query_params: Vec<FormField>,
+    headers: Vec<FormField>,
+    body_type: BodyType,
+    body: String,
+    form_fields: Vec<FormField>,
+    multipart_fields: Vec<MultipartField>,
+}
+
+#[derive(Debug, Clone)]
+struct ParsedPostmanBody {
+    body_type: BodyType,
+    body: String,
+    form_fields: Vec<FormField>,
+    multipart_fields: Vec<MultipartField>,
+}
 
 pub fn import_postman(path: &Path) -> Result<ImportResult, String> {
     let content = fs::read_to_string(path)
@@ -24,13 +45,10 @@ pub fn import_postman_str(content: &str) -> Result<ImportResult, String> {
     let root: Value = serde_json::from_str(content).map_err(|error| error.to_string())?;
     let mut warnings = Vec::new();
 
-    let schema = root
-        .get("info")
-        .and_then(|info| info.get("schema"))
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if !schema.contains("postman.com") && !schema.contains("schema.getpostman.com") {
-        return Err("file is not a Postman collection".into());
+    if !is_postman_collection(&root) {
+        return Err(
+            "file is not a Postman collection (expected info.schema or info._postman_schema)".into(),
+        );
     }
 
     let name = root
@@ -166,21 +184,20 @@ fn parse_postman_request_item(item: &Value, warnings: &mut Vec<String>) -> Resul
         .unwrap_or("Imported Request")
         .to_string();
 
-    let (method, url, query_params, headers, body_type, body, form_fields, multipart_fields) =
-        if let Some(url) = request_value.as_str() {
-            (
-                HttpMethod::Get,
-                url.to_string(),
-                crate::domain::default_key_value_fields(),
-                crate::domain::default_key_value_fields(),
-                crate::domain::BodyType::None,
-                String::new(),
-                crate::domain::default_form_fields(),
-                crate::domain::default_multipart_fields(),
-            )
-        } else {
-            parse_postman_request_object(request_value, warnings)?
-        };
+    let parsed = if let Some(url) = request_value.as_str() {
+        ParsedPostmanRequest {
+            method: HttpMethod::Get,
+            url: url.to_string(),
+            query_params: crate::domain::default_key_value_fields(),
+            headers: crate::domain::default_key_value_fields(),
+            body_type: BodyType::None,
+            body: String::new(),
+            form_fields: crate::domain::default_form_fields(),
+            multipart_fields: crate::domain::default_multipart_fields(),
+        }
+    } else {
+        parse_postman_request_object(request_value, warnings)?
+    };
 
     let variables = item
         .get("variable")
@@ -191,14 +208,14 @@ fn parse_postman_request_item(item: &Value, warnings: &mut Vec<String>) -> Resul
         id: crate::domain::EntityId::new(),
         name,
         protocol: RequestProtocol::Http,
-        method,
-        url,
-        query_params,
-        headers,
-        body_type,
-        body,
-        form_fields,
-        multipart_fields,
+        method: parsed.method,
+        url: parsed.url,
+        query_params: parsed.query_params,
+        headers: parsed.headers,
+        body_type: parsed.body_type,
+        body: parsed.body,
+        form_fields: parsed.form_fields,
+        multipart_fields: parsed.multipart_fields,
         variables: postman_variables_to_domain(&variables, warnings, "request"),
         pre_request_script: String::new(),
         post_response_script: String::new(),
@@ -215,19 +232,7 @@ fn parse_postman_request_item(item: &Value, warnings: &mut Vec<String>) -> Resul
 fn parse_postman_request_object(
     request: &Value,
     warnings: &mut Vec<String>,
-) -> Result<
-    (
-        HttpMethod,
-        String,
-        Vec<crate::domain::FormField>,
-        Vec<crate::domain::FormField>,
-        crate::domain::BodyType,
-        String,
-        Vec<crate::domain::FormField>,
-        Vec<crate::domain::MultipartField>,
-    ),
-    String,
-> {
+) -> Result<ParsedPostmanRequest, String> {
     if request.get("auth").is_some() {
         push_warning(warnings, "request auth settings were not imported");
     }
@@ -241,31 +246,30 @@ fn parse_postman_request_object(
     let (url, query_params) = parse_postman_url(request.get("url"), warnings);
     let headers = request
         .get("header")
-        .and_then(parse_postman_key_values)
-        .map(|fields| postman_key_values_to_domain(fields, warnings, "request headers"))
+        .map(|header| parse_postman_headers(header, warnings))
         .unwrap_or_else(crate::domain::default_key_value_fields);
 
-    let (body_type, body, form_fields, multipart_fields) = request
+    let parsed_body = request
         .get("body")
         .map(|body| parse_postman_body(body, warnings))
         .transpose()?
-        .unwrap_or((
-            crate::domain::BodyType::None,
-            String::new(),
-            crate::domain::default_form_fields(),
-            crate::domain::default_multipart_fields(),
-        ));
+        .unwrap_or_else(|| ParsedPostmanBody {
+            body_type: BodyType::None,
+            body: String::new(),
+            form_fields: crate::domain::default_form_fields(),
+            multipart_fields: crate::domain::default_multipart_fields(),
+        });
 
-    Ok((
+    Ok(ParsedPostmanRequest {
         method,
         url,
         query_params,
         headers,
-        body_type,
-        body,
-        form_fields,
-        multipart_fields,
-    ))
+        body_type: parsed_body.body_type,
+        body: parsed_body.body,
+        form_fields: parsed_body.form_fields,
+        multipart_fields: parsed_body.multipart_fields,
+    })
 }
 
 fn parse_postman_url(
@@ -283,14 +287,90 @@ fn parse_postman_url(
     let raw = value
         .get("raw")
         .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
+        .filter(|url| !url.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| build_postman_url(value));
+
+    if raw.is_empty() {
+        push_warning(warnings, "request URL could not be resolved from Postman format");
+    }
+
     let query = value
         .get("query")
         .and_then(parse_postman_key_values)
         .map(|fields| postman_key_values_to_domain(fields, warnings, "query params"))
         .unwrap_or_else(crate::domain::default_key_value_fields);
     (raw, query)
+}
+
+fn build_postman_url(value: &Value) -> String {
+    let protocol = value
+        .get("protocol")
+        .and_then(Value::as_str)
+        .unwrap_or("https");
+    let host = value
+        .get("host")
+        .map(postman_url_host)
+        .filter(|host| !host.is_empty())
+        .or_else(|| {
+            value
+                .get("host")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_default();
+    if host.is_empty() {
+        return String::new();
+    }
+
+    let mut url = format!("{protocol}://{host}");
+    if let Some(port) = value.get("port").and_then(Value::as_str)
+        && !port.is_empty()
+    {
+        url.push(':');
+        url.push_str(port);
+    }
+
+    let path = value
+        .get("path")
+        .map(postman_url_path)
+        .filter(|path| !path.is_empty())
+        .or_else(|| value.get("path").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_default();
+    if !path.is_empty() {
+        if path.starts_with('/') {
+            url.push_str(&path);
+        } else {
+            url.push('/');
+            url.push_str(&path);
+        }
+    }
+
+    url
+}
+
+fn postman_url_host(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Array(parts) => parts
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join("."),
+        _ => String::new(),
+    }
+}
+
+fn postman_url_path(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Array(parts) => parts
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join("/"),
+        _ => String::new(),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -300,8 +380,64 @@ struct PostmanKeyValue {
     disabled: bool,
 }
 
+fn is_postman_collection(root: &Value) -> bool {
+    let Some(info) = root.get("info") else {
+        return false;
+    };
+
+    for field in ["schema", "_postman_schema"] {
+        if let Some(schema) = info.get(field).and_then(Value::as_str)
+            && (schema.contains("postman.com") || schema.contains("schema.getpostman.com"))
+        {
+            return true;
+        }
+    }
+
+    info.get("name").is_some() && root.get("item").is_some()
+}
+
+fn json_value_to_string(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Null => String::new(),
+        Value::Bool(flag) => flag.to_string(),
+        Value::Number(number) => number.to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn parse_postman_headers(
+    value: &Value,
+    warnings: &mut Vec<String>,
+) -> Vec<crate::domain::FormField> {
+    if let Some(text) = value.as_str() {
+        return postman_key_values_to_domain(parse_header_string(text), warnings, "request headers");
+    }
+
+    parse_postman_key_values(value)
+        .map(|fields| postman_key_values_to_domain(fields, warnings, "request headers"))
+        .unwrap_or_else(crate::domain::default_key_value_fields)
+}
+
+fn parse_header_string(text: &str) -> Vec<PostmanKeyValue> {
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim_end_matches('\r').trim();
+            if line.is_empty() {
+                return None;
+            }
+            let (key, value) = line.split_once(':')?;
+            Some(PostmanKeyValue {
+                key: key.trim().to_string(),
+                value: value.trim().to_string(),
+                disabled: false,
+            })
+        })
+        .collect()
+}
+
 fn parse_postman_key_values(value: &Value) -> Option<Vec<PostmanKeyValue>> {
-  let sequence = value.as_array()?;
+    let sequence = value.as_array()?;
     Some(
         sequence
             .iter()
@@ -315,9 +451,8 @@ fn parse_postman_key_values(value: &Value) -> Option<Vec<PostmanKeyValue>> {
                     key,
                     value: entry
                         .get("value")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
+                        .map(json_value_to_string)
+                        .unwrap_or_default(),
                     disabled: entry
                         .get("disabled")
                         .and_then(Value::as_bool)
@@ -354,18 +489,7 @@ fn postman_key_values_to_domain(
     fields
 }
 
-fn parse_postman_body(
-    body: &Value,
-    warnings: &mut Vec<String>,
-) -> Result<
-    (
-        crate::domain::BodyType,
-        String,
-        Vec<crate::domain::FormField>,
-        Vec<crate::domain::MultipartField>,
-    ),
-    String,
-> {
+fn parse_postman_body(body: &Value, warnings: &mut Vec<String>) -> Result<ParsedPostmanBody, String> {
     let mode = body
         .get("mode")
         .and_then(Value::as_str)
@@ -385,22 +509,22 @@ fn parse_postman_body(
                 .and_then(Value::as_str)
                 .unwrap_or("json");
             let body_type = match language {
-                "json" => crate::domain::BodyType::Json,
-                "xml" => crate::domain::BodyType::Xml,
+                "json" => BodyType::Json,
+                "xml" => BodyType::Xml,
                 other => {
                     push_warning(
                         warnings,
                         format!("raw body language `{other}` stored as plain text"),
                     );
-                    crate::domain::BodyType::None
+                    BodyType::None
                 }
             };
-            Ok((
+            Ok(ParsedPostmanBody {
                 body_type,
-                raw,
-                crate::domain::default_form_fields(),
-                crate::domain::default_multipart_fields(),
-            ))
+                body: raw,
+                form_fields: crate::domain::default_form_fields(),
+                multipart_fields: crate::domain::default_multipart_fields(),
+            })
         }
         "urlencoded" => {
             let fields = body
@@ -408,12 +532,12 @@ fn parse_postman_body(
                 .and_then(parse_postman_key_values)
                 .map(|values| postman_key_values_to_domain(values, warnings, "form fields"))
                 .unwrap_or_else(crate::domain::default_form_fields);
-            Ok((
-                crate::domain::BodyType::FormUrlEncoded,
-                String::new(),
-                fields,
-                crate::domain::default_multipart_fields(),
-            ))
+            Ok(ParsedPostmanBody {
+                body_type: BodyType::FormUrlEncoded,
+                body: String::new(),
+                form_fields: fields,
+                multipart_fields: crate::domain::default_multipart_fields(),
+            })
         }
         "formdata" => {
             let multipart_fields = body
@@ -421,12 +545,12 @@ fn parse_postman_body(
                 .and_then(Value::as_array)
                 .map(|entries| parse_postman_formdata(entries, warnings))
                 .unwrap_or_else(crate::domain::default_multipart_fields);
-            Ok((
-                crate::domain::BodyType::Multipart,
-                String::new(),
-                crate::domain::default_form_fields(),
+            Ok(ParsedPostmanBody {
+                body_type: BodyType::Multipart,
+                body: String::new(),
+                form_fields: crate::domain::default_form_fields(),
                 multipart_fields,
-            ))
+            })
         }
         "file" | "graphql" => Err(format!("unsupported Postman body mode `{mode}`")),
         other => Err(format!("unsupported Postman body mode `{other}`")),
@@ -502,15 +626,15 @@ fn parse_postman_variables(value: &Value) -> Option<Vec<PostmanVariable>> {
                 let key = entry
                     .get("key")
                     .or_else(|| entry.get("name"))
+                    .or_else(|| entry.get("id"))
                     .and_then(Value::as_str)?
                     .to_string();
                 Some(PostmanVariable {
                     key,
                     value: entry
                         .get("value")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
+                        .map(json_value_to_string)
+                        .unwrap_or_default(),
                     disabled: entry
                         .get("disabled")
                         .and_then(Value::as_bool)
@@ -568,21 +692,38 @@ fn apply_postman_events(request: &mut Request, events: &[Value], warnings: &mut 
             .get("listen")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let code = event
-            .get("script")
-            .and_then(|script| script.get("exec"))
-            .and_then(|exec| match exec {
-                Value::Array(lines) => Some(
-                    lines
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .collect::<Vec<_>>()
-                        .join("\n"),
+        let Some(script) = event.get("script") else {
+            continue;
+        };
+
+        if script.is_string() {
+            push_warning(
+                warnings,
+                format!(
+                    "skipped script reference `{}` on `{}`",
+                    script.as_str().unwrap_or_default(),
+                    request.name
                 ),
-                Value::String(text) => Some(text.clone()),
-                _ => None,
+            );
+            continue;
+        }
+
+        let code = script
+            .get("exec")
+            .map(|exec| match exec {
+                Value::Array(lines) => lines
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                Value::String(text) => text.clone(),
+                _ => String::new(),
             })
             .unwrap_or_default();
+
+        if code.is_empty() {
+            continue;
+        }
 
         match listen {
             "prerequest" => request.pre_request_script = code,
@@ -754,6 +895,20 @@ mod tests {
         assert_eq!(imported.collection.requests.len(), 1);
         assert_eq!(imported.collection.requests[0].method, HttpMethod::Post);
         assert!(imported.collection.requests[0].tests_script.contains("pm.test"));
+    }
+
+    #[test]
+    fn imports_postman_v2_fixture() {
+        let json = include_str!("../../collection-v2.json");
+        let imported = import_postman_str(json).expect("import v2 collection");
+        assert_eq!(imported.collection.name, "HTTP Status Messages");
+        assert_eq!(imported.collection.requests.len(), 2);
+        assert!(!imported.collection.folders.is_empty());
+        assert!(imported
+            .collection
+            .variables
+            .iter()
+            .any(|variable| variable.name == "var-1"));
     }
 
     #[test]

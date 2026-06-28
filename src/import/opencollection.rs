@@ -456,20 +456,19 @@ fn load_environments(path: &Path, warnings: &mut Vec<String>) -> Vec<Environment
         return Vec::new();
     }
 
-    let mut environments = Vec::new();
-    let mut entries = fs::read_dir(path)
-        .map_err(|error| {
+    let mut entries = match fs::read_dir(path) {
+        Ok(read_dir) => read_dir.filter_map(|entry| entry.ok()).collect::<Vec<_>>(),
+        Err(error) => {
             push_warning(
                 warnings,
                 format!("failed to read environments in {}: {error}", path.display()),
             );
-        })
-        .ok()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| entry.ok())
-        .collect::<Vec<_>>();
+            Vec::new()
+        }
+    };
     entries.sort_by_key(|entry| entry.file_name());
+
+    let mut environments = Vec::new();
 
     for entry in entries {
         let path = entry.path();
