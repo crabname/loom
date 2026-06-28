@@ -6,13 +6,13 @@ use gpui_component::{
     IndexPath,
 };
 
-use crate::domain::{
-    demo_workspaces, BodyType, EnvironmentRef, EnvironmentScope, HttpMethod,
-};
+use crate::domain::{BodyType, HttpMethod};
+use crate::storage::AppPaths;
 use std::collections::HashMap;
 
+use super::startup::{first_open_request, load_startup_workspaces};
 use super::ui::build_collection_tree_items;
-use super::{ApiHelperApp, Tab, TabSource};
+use super::{menus, ApiHelperApp, Tab};
 
 pub(crate) const METHOD_LABELS: [&str; 5] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 pub(crate) const BODY_LABELS: [&str; 5] = ["none", "JSON", "XML", "form-urlencoded", "multipart"];
@@ -23,18 +23,29 @@ impl ApiHelperApp {
     }
 
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let workspaces = demo_workspaces();
-        let request = workspaces[0].collections[0].requests[0].clone();
-        let tab = Tab::from_request(
-            0,
-            &request,
-            Some(TabSource {
-                workspace: 0,
-                collection: 0,
-                folder: None,
-                request: 0,
-            }),
-        );
+        let app_paths = AppPaths::ensure().unwrap_or_else(|error| {
+            eprintln!("failed to initialize app data directory: {error}");
+            AppPaths::fallback()
+        });
+        let startup = load_startup_workspaces(&app_paths);
+        let workspaces = startup.workspaces;
+        let active_workspace = startup.active_workspace;
+        let (request, tab_source) = first_open_request(&workspaces, active_workspace)
+            .map(|(request, source)| (request, Some(source)))
+            .unwrap_or_else(|| {
+                (
+                    workspaces[active_workspace]
+                        .collections
+                        .first()
+                        .and_then(|collection| collection.requests.first())
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            crate::domain::Request::new("Untitled")
+                        }),
+                    None,
+                )
+            });
+        let tab = Tab::from_request(0, &request, tab_source);
 
         let workspace_labels: Vec<SharedString> = workspaces
             .iter()
@@ -43,7 +54,7 @@ impl ApiHelperApp {
         let workspace_select = cx.new(|cx| {
             SelectState::new(
                 workspace_labels,
-                Some(IndexPath::default()),
+                Some(IndexPath::new(active_workspace)),
                 window,
                 cx,
             )
@@ -117,15 +128,20 @@ impl ApiHelperApp {
         });
 
         let collections_tree = cx.new(|cx| {
-            TreeState::new(cx).items(build_collection_tree_items(&workspaces[0].collections))
+            TreeState::new(cx).items(build_collection_tree_items(
+                &workspaces[active_workspace].collections,
+            ))
         });
 
-        let workspace_count = workspaces.len();
+        let app_menu_bar = menus::new_app_menu_bar(cx);
 
         let mut app = Self {
+            app_paths,
             workspaces,
-            active_workspace: 0,
-            workspace_sessions: vec![None; workspace_count],
+            workspace_bindings: startup.bindings,
+            workspace_collection_paths: startup.collection_paths,
+            active_workspace,
+            app_menu_bar,
             tabs: vec![tab],
             active_tab: 0,
             next_tab_id: 1,
@@ -138,10 +154,7 @@ impl ApiHelperApp {
             body_type_select,
             workspace_select,
             environment_select,
-            active_environment: Some(EnvironmentRef {
-                scope: EnvironmentScope::Workspace,
-                index: 0,
-            }),
+            active_environment: None,
             runtime_vars: HashMap::new(),
             query_inputs: Vec::new(),
             header_inputs: Vec::new(),
@@ -150,6 +163,7 @@ impl ApiHelperApp {
             variable_inputs: Vec::new(),
             query_sync_guard: false,
             url_parse_debounce_seq: 0,
+            autosave_debounce_seq: 0,
             query_param_subscriptions: Vec::new(),
             collections_tree,
             _subscriptions: Vec::new(),
@@ -159,10 +173,19 @@ impl ApiHelperApp {
         app.wire_tree_subscription(cx);
         app.wire_workspace_subscription(window, cx);
         app.wire_environment_subscription(window, cx);
+        app.active_environment = app.default_environment_ref();
         app.refresh_environment_select(window, cx);
         app.sync_collections_tree_selection(cx);
         app.reload_field_inputs(window, cx);
         app.sync_url_from_params(window, cx);
+
+        app._subscriptions.push(cx.on_app_quit(|app, cx| {
+            app.flush_workspace_edits(cx);
+            app.autosave_active_workspace(cx);
+            app.persist_app_state();
+            async {}
+        }));
+
         cx.notify();
         app
     }

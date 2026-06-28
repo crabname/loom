@@ -1,17 +1,24 @@
+mod app_state;
+mod autosave;
 mod collections;
 mod dispatch;
 mod editor;
 mod field_tables;
 mod init;
+pub mod menus;
+mod startup;
 mod tab;
 mod tab_actions;
 mod ui;
 mod url_sync;
 mod workspace;
+mod workspace_binding;
+mod workspace_storage;
 
 use gpui::*;
 use gpui_component::{
     input::InputState,
+    menu::AppMenuBar,
     select::SelectState,
     tree::TreeState,
 };
@@ -19,15 +26,22 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::domain::{EnvironmentRef, Workspace};
+use crate::storage::AppPaths;
 
-use tab::{Tab, TabSource, WorkspaceSession};
+use tab::{Tab, TabSource};
+use workspace_binding::WorkspaceBinding;
 
 use ui::{MultipartRowInputs, RowInputs};
 
+pub use menus::OpenWorkspace;
+
 pub struct ApiHelperApp {
+    pub(super) app_paths: AppPaths,
     pub(super) workspaces: Vec<Workspace>,
+    pub(super) workspace_bindings: Vec<WorkspaceBinding>,
+    pub(super) workspace_collection_paths: Vec<Vec<String>>,
     pub(super) active_workspace: usize,
-    pub(super) workspace_sessions: Vec<Option<WorkspaceSession>>,
+    pub(super) app_menu_bar: Entity<AppMenuBar>,
     pub(super) tabs: Vec<Tab>,
     pub(super) active_tab: usize,
     pub(super) next_tab_id: usize,
@@ -52,6 +66,7 @@ pub struct ApiHelperApp {
 
     pub(super) query_sync_guard: bool,
     pub(super) url_parse_debounce_seq: u64,
+    pub(super) autosave_debounce_seq: u64,
     pub(super) query_param_subscriptions: Vec<Subscription>,
 
     pub(super) collections_tree: Entity<TreeState>,

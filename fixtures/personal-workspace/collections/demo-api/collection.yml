@@ -1,0 +1,4 @@
+name: Demo API
+variables:
+  - name: resource
+    value: users

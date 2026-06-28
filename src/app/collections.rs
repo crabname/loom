@@ -71,7 +71,7 @@ impl ApiHelperApp {
         });
     }
 
-    pub(super) fn sync_active_tab_to_collection(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn sync_active_tab_to_collection_quiet(&mut self, cx: &mut Context<Self>) {
         let tab = match self.tabs.get(self.active_tab) {
             Some(tab) => tab.clone(),
             None => return,
@@ -102,6 +102,11 @@ impl ApiHelperApp {
         let _ = cx;
     }
 
+    pub(super) fn sync_active_tab_to_collection(&mut self, cx: &mut Context<Self>) {
+        self.sync_active_tab_to_collection_quiet(cx);
+        self.schedule_autosave(cx);
+    }
+
     pub(super) fn add_folder_to_collection(
         &mut self,
         collection: usize,
@@ -122,6 +127,7 @@ impl ApiHelperApp {
         collection_data.folders.push(CollectionFolder::new(name));
 
         self.refresh_collections_tree(cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
         let _ = window;
     }
@@ -156,6 +162,7 @@ impl ApiHelperApp {
 
         self.refresh_collections_tree(cx);
         self.open_request_tab(collection, folder, request_index, window, cx);
+        self.autosave_active_workspace(cx);
     }
 
     pub(super) fn delete_request_from_collection(
@@ -215,6 +222,7 @@ impl ApiHelperApp {
         self.refresh_collections_tree(cx);
         self.reload_active_tab_inputs(window, cx);
         self.sync_collections_tree_selection(cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
     }
 
@@ -237,6 +245,7 @@ impl ApiHelperApp {
         collection_data.name = name.to_string();
         self.refresh_collections_tree(cx);
         self.refresh_environment_select(window, cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
     }
 
@@ -262,6 +271,7 @@ impl ApiHelperApp {
 
         folder_data.name = name.to_string();
         self.refresh_collections_tree(cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
     }
 
@@ -301,6 +311,7 @@ impl ApiHelperApp {
         }
 
         self.refresh_collections_tree(cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
     }
 }

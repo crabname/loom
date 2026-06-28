@@ -3,7 +3,7 @@ use gpui_component::select::SelectEvent;
 
 use crate::domain::{Environment, EnvironmentRef, EnvironmentScope, Variable};
 
-use super::{ApiHelperApp, WorkspaceSession};
+use super::ApiHelperApp;
 
 impl ApiHelperApp {
     pub(super) fn wire_workspace_subscription(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -24,37 +24,7 @@ impl ApiHelperApp {
         }));
     }
 
-    fn save_workspace_session(&mut self, cx: &mut Context<Self>) {
-        self.flush_field_inputs(cx);
-        self.capture_editor_state(cx);
-        self.sync_active_tab_to_collection(cx);
-
-        let mut tabs = std::mem::take(&mut self.tabs);
-        for tab in &mut tabs {
-            tab.loading = false;
-        }
-
-        self.workspace_sessions[self.active_workspace] = Some(WorkspaceSession {
-            tabs,
-            active_tab: self.active_tab,
-            active_environment: self.active_environment,
-            runtime_vars: self.runtime_vars.clone(),
-        });
-    }
-
-    fn restore_workspace_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(session) = self.workspace_sessions[self.active_workspace].clone() {
-            self.tabs = session.tabs;
-            self.active_tab = session
-                .active_tab
-                .min(self.tabs.len().saturating_sub(1));
-            self.active_environment = session.active_environment;
-            self.runtime_vars = session.runtime_vars;
-            self.reload_active_tab_inputs(window, cx);
-            self.refresh_environment_select(window, cx);
-            return;
-        }
-
+    fn reset_workspace_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.tabs.clear();
         self.active_tab = 0;
         self.active_environment = self.default_environment_ref();
@@ -63,20 +33,22 @@ impl ApiHelperApp {
         self.refresh_environment_select(window, cx);
     }
 
-    fn switch_workspace(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn switch_workspace(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         if index >= self.workspaces.len() || index == self.active_workspace {
             return;
         }
 
-        self.save_workspace_session(cx);
+        self.flush_workspace_edits(cx);
+        self.autosave_workspace_at(cx, self.active_workspace);
         self.active_workspace = index;
         self.refresh_collections_tree(cx);
-        self.restore_workspace_session(window, cx);
+        self.reset_workspace_ui(window, cx);
         self.sync_collections_tree_selection(cx);
+        self.persist_app_state();
         cx.notify();
     }
 
-    fn default_environment_ref(&self) -> Option<EnvironmentRef> {
+    pub(super) fn default_environment_ref(&self) -> Option<EnvironmentRef> {
         if self.workspaces[self.active_workspace]
             .environments
             .first()
@@ -235,6 +207,7 @@ impl ApiHelperApp {
 
         self.reconcile_active_environment();
         self.refresh_environment_select(window, cx);
+        self.autosave_active_workspace(cx);
         cx.notify();
     }
 

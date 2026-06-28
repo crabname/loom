@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-
-use serde_json::Value;
-
 use crate::domain::{
     default_form_fields, default_key_value_fields, default_multipart_fields, default_variables,
     BodyType, FormField, HttpMethod, KeyValueField, MultipartField, Request, RequestProtocol,
@@ -35,14 +31,6 @@ pub struct TabSource {
     pub collection: usize,
     pub folder: Option<usize>,
     pub request: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct WorkspaceSession {
-    pub tabs: Vec<Tab>,
-    pub active_tab: usize,
-    pub active_environment: Option<crate::domain::EnvironmentRef>,
-    pub runtime_vars: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone)]

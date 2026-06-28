@@ -20,7 +20,7 @@ pub(crate) use sidebar::{
 use gpui::*;
 use gpui_component::{
     resizable::{h_resizable, resizable_panel, v_resizable},
-    v_flex, Root,
+    v_flex, Root, TitleBar,
 };
 
 use super::ApiHelperApp;
@@ -28,40 +28,54 @@ use super::ApiHelperApp;
 impl Render for ApiHelperApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
+            .id("api-helper-root")
             .size_full()
+            .flex()
+            .flex_col()
+            .key_context("ApiHelperApp")
+            .on_action(cx.listener(Self::on_open_workspace))
             .child(
-                h_resizable("main-layout")
+                TitleBar::new()
+                    .child(div().flex().items_center().child(self.app_menu_bar.clone())),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
                     .child(
-                        resizable_panel()
-                            .size(px(260.))
-                            .child(self.render_sidebar(cx)),
-                    )
-                    .child(
-                        resizable_panel().child(
-                            v_flex()
-                                .size_full()
-                                .w_full()
-                                .min_h_0()
-                                .min_w_0()
-                                .child(self.render_tab_bar(cx))
-                                .child(self.render_url_bar(cx))
-                                .child(
-                                    div()
-                                        .flex_1()
+                        h_resizable("main-layout")
+                            .child(
+                                resizable_panel()
+                                    .size(px(260.))
+                                    .child(self.render_sidebar(cx)),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    v_flex()
+                                        .size_full()
+                                        .w_full()
                                         .min_h_0()
+                                        .min_w_0()
+                                        .child(self.render_tab_bar(cx))
+                                        .child(self.render_url_bar(cx))
                                         .child(
-                                            v_resizable("editor-split")
+                                            div()
+                                                .flex_1()
+                                                .min_h_0()
                                                 .child(
-                                                    resizable_panel()
-                                                        .child(self.render_request_panel(cx)),
-                                                )
-                                                .child(
-                                                    resizable_panel()
-                                                        .child(self.render_response_panel(cx)),
+                                                    v_resizable("editor-split")
+                                                        .child(
+                                                            resizable_panel()
+                                                                .child(self.render_request_panel(cx)),
+                                                        )
+                                                        .child(
+                                                            resizable_panel()
+                                                                .child(self.render_response_panel(cx)),
+                                                        ),
                                                 ),
                                         ),
                                 ),
-                        ),
+                            ),
                     ),
             )
             .children(Root::render_dialog_layer(window, cx))

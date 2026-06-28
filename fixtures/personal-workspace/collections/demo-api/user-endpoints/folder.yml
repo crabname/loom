@@ -1,0 +1,4 @@
+name: User endpoints
+variables:
+  - name: userId
+    value: "1"

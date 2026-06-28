@@ -1,13 +1,14 @@
 mod app;
 mod domain;
 mod scripting;
+mod storage;
 mod transport;
 
 use gpui::*;
 use gpui_component::*;
 use gpui_component_assets::Assets;
 
-use app::ApiHelperApp;
+use app::{menus, ApiHelperApp};
 
 fn main() {
     let app = gpui_platform::application()
@@ -16,9 +17,11 @@ fn main() {
 
     app.run(move |cx| {
         gpui_component::init(cx);
+        menus::register_app_menus(cx);
 
         let window_options = WindowOptions {
             window_bounds: Some(WindowBounds::centered(size(px(1280.), px(800.)), cx)),
+            titlebar: Some(TitleBar::title_bar_options()),
             ..Default::default()
         };
 

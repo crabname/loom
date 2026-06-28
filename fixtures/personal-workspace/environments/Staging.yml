@@ -1,0 +1,6 @@
+name: Staging
+variables:
+  - name: baseUrl
+    value: https://staging.example.com
+  - name: apiKey
+    value: staging-key
