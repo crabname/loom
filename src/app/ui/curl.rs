@@ -11,7 +11,7 @@ use gpui_component::{
 
 use crate::domain::{parse_curl, request_to_curl, Request};
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
 #[derive(Clone, Copy)]
 pub(super) enum CurlImportTarget {
@@ -104,7 +104,7 @@ impl Render for CurlDialogPanel {
     }
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn active_request_as_curl(&mut self, cx: &App) -> Result<String, String> {
         self.flush_field_inputs(cx);
         self.capture_editor_state(cx);

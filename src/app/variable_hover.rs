@@ -12,10 +12,10 @@ use crate::domain::{
     VariableResolveLabels,
 };
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
 pub struct VariableHoverProvider {
-    app: RefCell<WeakEntity<ApiHelperApp>>,
+    app: RefCell<WeakEntity<LoomApp>>,
 }
 
 impl VariableHoverProvider {
@@ -25,7 +25,7 @@ impl VariableHoverProvider {
         })
     }
 
-    pub fn attach(&self, app: &Entity<ApiHelperApp>) {
+    pub fn attach(&self, app: &Entity<LoomApp>) {
         *self.app.borrow_mut() = app.downgrade();
     }
 }
@@ -96,7 +96,7 @@ fn byte_range_to_lsp_range(text: &Rope, range: Range<usize>) -> LspRange {
     }
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn variable_layers_for_active_tab(
         &self,
     ) -> Option<(VariableLayers<'_>, VariableResolveLabels)> {

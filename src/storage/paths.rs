@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::local::slugify;
 
-const APP_DIR_NAME: &str = "api-helper";
+const APP_DIR_NAME: &str = "loom";
 
 pub struct AppPaths {
     #[allow(dead_code)]
@@ -54,7 +54,7 @@ impl AppPaths {
     }
 
     pub fn fallback() -> Self {
-        let root = std::env::temp_dir().join("api-helper");
+        let root = std::env::temp_dir().join("loom");
         let _ = std::fs::create_dir_all(root.join("local").join("workspaces"));
         let _ = std::fs::create_dir_all(root.join("cloud").join("cache"));
 

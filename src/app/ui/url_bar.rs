@@ -8,9 +8,9 @@ use gpui_component::{
 };
 
 use super::curl::CurlImportTarget;
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_url_bar(&self, cx: &Context<Self>) -> impl IntoElement {
         let loading = self.active_tab().is_some_and(|tab| tab.loading);
 

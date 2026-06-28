@@ -8,7 +8,7 @@ use gpui_component::{
     ActiveTheme as _, WindowExt as _,
 };
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
 #[derive(Clone, Copy)]
 pub(super) enum RenameTarget {
@@ -63,7 +63,7 @@ impl Render for RenameDialogPanel {
     }
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     fn rename_target_name(&self, target: RenameTarget) -> Option<String> {
         match target {
             RenameTarget::Collection { collection } => self

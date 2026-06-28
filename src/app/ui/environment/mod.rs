@@ -16,9 +16,9 @@ use gpui_component::{
 use crate::domain::Variable;
 
 use manager::EnvironmentsManagerPanel;
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_environment_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .gap_1()

@@ -4,9 +4,9 @@ use crate::domain::{
     ensure_trailing_empty_row, format_request_url, query_params_equal, split_query_params,
 };
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn on_query_param_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.sync_url_from_params(window, cx);
         cx.notify();

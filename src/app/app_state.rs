@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use crate::storage::{AppState, WorkspaceRef};
 
-use super::{ApiHelperApp, WorkspaceBinding};
+use super::{LoomApp, WorkspaceBinding};
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn persist_app_state(&self) {
         let local_refs = self.persistable_local_refs();
         if local_refs.is_empty() {

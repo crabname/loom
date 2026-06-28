@@ -13,7 +13,7 @@ use gpui_component::{
 use crate::domain::{KeyValueField, MultipartField, MultipartFieldType};
 
 use crate::app::variable_hover::{configure_variable_input, VariableHoverProvider};
-use super::ApiHelperApp;
+use super::LoomApp;
 
 #[derive(Clone)]
 pub(crate) struct RowInputs {
@@ -67,7 +67,7 @@ impl FieldTable {
     }
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_kv_table<F: KvFieldView>(
         &self,
         table: FieldTable,
@@ -299,7 +299,7 @@ pub(crate) fn flush_multipart_rows(
 
 pub(crate) fn build_multipart_row_inputs(
     window: &mut Window,
-    cx: &mut Context<ApiHelperApp>,
+    cx: &mut Context<LoomApp>,
     fields: &[MultipartField],
 ) -> Vec<MultipartRowInputs> {
     fields
@@ -364,7 +364,7 @@ impl KeyValueRow for KeyValueField {
 
 pub(crate) fn build_row_inputs<T: RowField>(
     window: &mut Window,
-    cx: &mut Context<ApiHelperApp>,
+    cx: &mut Context<LoomApp>,
     fields: &[T],
 ) -> Vec<RowInputs> {
     build_row_inputs_from(
@@ -380,7 +380,7 @@ pub(crate) fn build_row_inputs<T: RowField>(
 
 pub(crate) fn build_query_row_inputs<T: RowField>(
     window: &mut Window,
-    cx: &mut Context<ApiHelperApp>,
+    cx: &mut Context<LoomApp>,
     fields: &[T],
     variable_hover: std::rc::Rc<VariableHoverProvider>,
 ) -> Vec<RowInputs> {
@@ -397,7 +397,7 @@ pub(crate) fn build_query_row_inputs<T: RowField>(
 
 pub(crate) fn build_row_inputs_from<T>(
     window: &mut Window,
-    cx: &mut Context<ApiHelperApp>,
+    cx: &mut Context<LoomApp>,
     fields: &[T],
     name_for_row: impl Fn(&T) -> String,
     value_for_row: impl Fn(&T) -> String,

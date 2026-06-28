@@ -23,16 +23,16 @@ use gpui_component::{
     v_flex, Root, TitleBar,
 };
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl Render for ApiHelperApp {
+impl Render for LoomApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .id("api-helper-root")
+            .id("loom-root")
             .size_full()
             .flex()
             .flex_col()
-            .key_context("ApiHelperApp")
+            .key_context("LoomApp")
             .on_action(cx.listener(Self::on_open_workspace))
             .child(
                 TitleBar::new()

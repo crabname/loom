@@ -1,7 +1,7 @@
 use gpui::{actions, App, Menu, MenuItem};
 use gpui_component::{menu::AppMenuBar, GlobalState};
 
-actions!(api_helper, [OpenWorkspace]);
+actions!(loom, [OpenWorkspace]);
 
 pub fn register_app_menus(cx: &mut App) {
     cx.set_menus(vec![Menu {

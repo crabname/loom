@@ -13,7 +13,7 @@ use gpui_component::{
 use crate::domain::{Collection, HttpMethod, RequestProtocol};
 use crate::app::tab::TabSource;
 
-use super::ApiHelperApp;
+use super::LoomApp;
 use super::rename::RenameTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,7 +137,7 @@ pub(crate) fn build_collection_tree_items(collections: &[Collection]) -> Vec<Tre
         .collect()
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let view = cx.entity();
         let tree_view = view.clone();

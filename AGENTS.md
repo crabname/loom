@@ -1,4 +1,4 @@
-# api-helper
+# loom
 
 Desktop HTTP client (Postman-like) on Rust + GPUI (Zed stack).
 
@@ -10,7 +10,7 @@ Desktop HTTP client (Postman-like) on Rust + GPUI (Zed stack).
 
 - **Rust** edition 2024
 - **GPUI** — UI framework from [zed-industries/zed](https://github.com/zed-industries/zed) (git rev in `Cargo.toml`)
-- **gpui-component** — local path dependency: `../gpui-component/crates/ui`
+- **gpui-component** — git dependency: `longbridge/gpui-component` (rev pinned in `Cargo.toml`)
 - **reqwest** 0.12 (`rustls-tls`, no default-features) + **tokio**
 - **anyhow** — top-level errors (HTTP layer currently uses `Result<_, String>`)
 
@@ -18,7 +18,7 @@ Desktop HTTP client (Postman-like) on Rust + GPUI (Zed stack).
 
 ```
 main.rs              — entry point: gpui_platform::application(), init, open_window
-src/app/mod.rs       — logic: ApiHelperApp, state, tabs, HTTP dispatch
+src/app/mod.rs       — logic: LoomApp, state, tabs, HTTP dispatch
 src/app/tab.rs       — tab state: Tab, TabSource, Params/Headers/Body panels
 src/app/ui/mod.rs    — Render impl, main layout, resizable panels
 src/app/ui/*.rs      — UI components: sidebar, tab_bar, url_bar, request, response, fields, curl, environment
@@ -48,17 +48,16 @@ src/transport/http.rs — network: build_url_with_params, send_http_request, Htt
 
 ## Key GPUI Patterns
 
-- `ApiHelperApp::open()` → `cx.new(|cx| Self::new(...))` → `Entity<ApiHelperApp>`
+- `LoomApp::open()` → `cx.new(|cx| Self::new(...))` → `Entity<LoomApp>`
 - Text inputs: `Entity<InputState>`, selects: `Entity<SelectState<...>>`
 - Subscriptions: `cx.subscribe_in(&entity, window, ...)` → store in `_subscriptions`
 - Async HTTP: `cx.spawn(async move |this, cx| { ... }).detach()`
 - UI update after async: `this.update(cx, |app, cx| { ...; cx.notify() })`
-- Render: `impl Render for ApiHelperApp` in `src/app/ui/mod.rs`
+- Render: `impl Render for LoomApp` in `src/app/ui/mod.rs`
 
 ## External Dependencies
 
-- **Do not modify** `../gpui-component` from this repository without an explicit request
-- **Do not bump** git `rev` for `gpui` / `gpui_platform` without coordination
+- **Do not bump** git `rev` for `gpui` / `gpui_platform` / `gpui-component` without coordination
 - New crates in `Cargo.toml` — only when genuinely needed
 
 ## Build and Verification

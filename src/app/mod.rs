@@ -36,7 +36,7 @@ use ui::{MultipartRowInputs, RowInputs};
 
 pub use menus::OpenWorkspace;
 
-pub struct ApiHelperApp {
+pub struct LoomApp {
     pub(super) app_paths: AppPaths,
     pub(super) workspaces: Vec<Workspace>,
     pub(super) workspace_bindings: Vec<WorkspaceBinding>,

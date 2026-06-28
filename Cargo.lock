@@ -177,28 +177,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
-name = "api-helper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "boa_engine",
- "boa_gc",
- "dirs 5.0.1",
- "gpui",
- "gpui-component",
- "gpui-component-assets",
- "gpui_platform",
- "lsp-types",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
- "uuid",
- "xmltree",
-]
-
-[[package]]
 name = "ar_archive_writer"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2510,6 +2488,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.5.2"
+source = "git+https://github.com/longbridge/gpui-component?rev=063e55bbc4fb13907a988111e3581595cbcaefde#063e55bbc4fb13907a988111e3581595cbcaefde"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2561,6 +2540,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-assets"
 version = "0.5.1"
+source = "git+https://github.com/longbridge/gpui-component?rev=063e55bbc4fb13907a988111e3581595cbcaefde#063e55bbc4fb13907a988111e3581595cbcaefde"
 dependencies = [
  "anyhow",
  "gpui",
@@ -2574,6 +2554,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
+source = "git+https://github.com/longbridge/gpui-component?rev=063e55bbc4fb13907a988111e3581595cbcaefde#063e55bbc4fb13907a988111e3581595cbcaefde"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3648,6 +3629,28 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 dependencies = [
  "serde_core",
  "value-bag",
+]
+
+[[package]]
+name = "loom"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "boa_engine",
+ "boa_gc",
+ "dirs 5.0.1",
+ "gpui",
+ "gpui-component",
+ "gpui-component-assets",
+ "gpui_platform",
+ "lsp-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "uuid",
+ "xmltree",
 ]
 
 [[package]]

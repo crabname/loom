@@ -16,7 +16,7 @@ use crate::domain::{
 };
 use crate::scripting::{ScriptConsoleEntry, ScriptConsoleLevel};
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
 fn console_level_color(level: ScriptConsoleLevel, cx: &App) -> Hsla {
     match level {
@@ -158,7 +158,7 @@ fn render_timing_waterfall(timing: RequestTimingBreakdown, cx: &App) -> AnyEleme
         .into_any_element()
 }
 
-fn response_status_color(status: u16, cx: &Context<ApiHelperApp>) -> Hsla {
+fn response_status_color(status: u16, cx: &Context<LoomApp>) -> Hsla {
     match status {
         200..=299 => cx.theme().green,
         300..=399 => cx.theme().blue,
@@ -167,7 +167,7 @@ fn response_status_color(status: u16, cx: &Context<ApiHelperApp>) -> Hsla {
     }
 }
 
-impl ApiHelperApp {
+impl LoomApp {
     fn render_response_status(
         &self,
         status: &ResponseStatusInfo<'_>,

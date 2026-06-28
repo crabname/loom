@@ -7,9 +7,9 @@ use super::ui::{
     build_multipart_row_inputs, build_query_row_inputs, build_row_inputs,
     build_variable_row_inputs, flush_environment_variables, flush_multipart_rows, flush_rows,
 };
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn flush_field_inputs(&mut self, cx: &App) {
         let Some(tab) = self.tabs.get_mut(self.active_tab) else {
             return;

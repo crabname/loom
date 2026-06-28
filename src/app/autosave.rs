@@ -4,11 +4,11 @@ use gpui::*;
 
 use crate::storage::LocalStorageProvider;
 
-use super::{ApiHelperApp, WorkspaceBinding};
+use super::{LoomApp, WorkspaceBinding};
 
 const AUTOSAVE_DEBOUNCE_MS: u64 = 800;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn flush_workspace_edits(&mut self, cx: &mut Context<Self>) {
         self.flush_field_inputs(cx);
         self.capture_editor_state(cx);

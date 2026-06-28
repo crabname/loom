@@ -9,7 +9,7 @@ use gpui::*;
 use gpui_component::*;
 use gpui_component_assets::Assets;
 
-use app::{menus, ApiHelperApp};
+use app::{menus, LoomApp};
 
 fn main() {
     let app = gpui_platform::application()
@@ -28,7 +28,7 @@ fn main() {
 
         cx.spawn(async move |cx| {
             cx.open_window(window_options, |window, cx| {
-                let view = ApiHelperApp::open(window, cx);
+                let view = LoomApp::open(window, cx);
                 cx.new(|cx| Root::new(view, window, cx))
             })
             .expect("failed to open window");

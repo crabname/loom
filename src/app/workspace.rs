@@ -3,9 +3,9 @@ use gpui_component::select::SelectEvent;
 
 use crate::domain::{Environment, EnvironmentRef, EnvironmentScope, Variable};
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn wire_workspace_subscription(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self._subscriptions.push(cx.subscribe_in(&self.workspace_select, window, {
             move |this, _, event: &SelectEvent<Vec<SharedString>>, window, cx| {

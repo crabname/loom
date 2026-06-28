@@ -5,9 +5,9 @@ use gpui_component::{notification::Notification, WindowExt as _};
 
 use crate::storage::LocalStorageProvider;
 
-use super::{ApiHelperApp, OpenWorkspace, WorkspaceBinding};
+use super::{LoomApp, OpenWorkspace, WorkspaceBinding};
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn on_open_workspace(
         &mut self,
         _: &OpenWorkspace,

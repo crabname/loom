@@ -13,9 +13,9 @@ use crate::domain::BodyType;
 
 use crate::app::tab::{RequestPanelTab, RequestScriptSubTab};
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_request_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let panel_tab = self
             .active_tab()

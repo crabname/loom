@@ -12,9 +12,9 @@ use crate::scripting::{
 };
 use crate::transport::{block_on, send_http_request, HttpRequestBody, HttpRequestResult};
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn active_environment_variables(&self) -> Option<&[Variable]> {
         let environment_ref = self.active_environment?;
         let workspace = self.workspaces.get(self.active_workspace)?;

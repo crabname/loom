@@ -87,7 +87,7 @@ fn posts_folder() -> CollectionFolder {
             request.body_type = BodyType::Json;
             request.body = r#"{
   "title": "{{title}}",
-  "body": "Created from api-helper demo",
+  "body": "Created from loom demo",
   "userId": {{userId}}
 }"#
             .into();

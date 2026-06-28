@@ -13,12 +13,12 @@ use std::collections::HashMap;
 use super::startup::{first_open_request, load_startup_workspaces};
 use super::ui::build_collection_tree_items;
 use super::variable_hover::{configure_variable_code_editor, configure_variable_input, VariableHoverProvider};
-use super::{menus, ApiHelperApp, Tab};
+use super::{menus, LoomApp, Tab};
 
 pub(crate) const METHOD_LABELS: [&str; 5] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 pub(crate) const BODY_LABELS: [&str; 5] = ["none", "JSON", "XML", "form-urlencoded", "multipart"];
 
-impl ApiHelperApp {
+impl LoomApp {
     pub fn open(window: &mut Window, cx: &mut App) -> Entity<Self> {
         cx.new(|cx| Self::new(window, cx))
     }

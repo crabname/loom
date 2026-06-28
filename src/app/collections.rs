@@ -7,9 +7,9 @@ use crate::storage::{default_collection_paths, remove_collection_dir, remove_fol
 use super::ui::{
     build_collection_tree_items, parse_collection_tree_id, parse_folder_tree_id, request_tree_id,
 };
-use super::{ApiHelperApp, TabSource};
+use super::{LoomApp, TabSource};
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn active_collections(&self) -> &[Collection] {
         &self.workspaces[self.active_workspace].collections
     }

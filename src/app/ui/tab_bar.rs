@@ -6,9 +6,9 @@ use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _,
 };
 
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn render_tab_bar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let mut bar = TabBar::new("request-tabs")
             .selected_index(self.active_tab)

@@ -3,9 +3,9 @@ use gpui::*;
 use crate::domain::{FormField, KeyValueField, MultipartField, Variable};
 
 use super::ui::FieldTable;
-use super::ApiHelperApp;
+use super::LoomApp;
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn toggle_field(
         &mut self,
         table: FieldTable,

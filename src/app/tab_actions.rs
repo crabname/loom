@@ -1,8 +1,8 @@
 use gpui::*;
 
-use super::{ApiHelperApp, Tab, TabSource};
+use super::{LoomApp, Tab, TabSource};
 
-impl ApiHelperApp {
+impl LoomApp {
     pub(super) fn active_tab(&self) -> Option<&Tab> {
         self.tabs.get(self.active_tab)
     }
